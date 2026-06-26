@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新概念英语第二册 · 背单词</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #f0f4f8; color: #333; min-height:100vh;
+}
+.header {
+  background: linear-gradient(135deg, #4a6fa5 0%, #3b5998 100%);
+  color: #fff; padding: 12px 20px; position: sticky; top:0; z-index:100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.header h1 { font-size:1.15em; font-weight:600; }
+
+.container { max-width:1400px; margin:0 auto; padding:12px 10px; }
+
+.stats-bar {
+  display:flex; gap:20px; margin-bottom:10px; font-size:0.85em; color:#666; flex-wrap:wrap;
+  background:#fff; padding:10px 16px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.06);
+}
+.toolbar {
+  display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;
+}
+.filter-btn {
+  padding:5px 14px; border:1.5px solid #ccc; background:#fff; border-radius:16px;
+  cursor:pointer; font-size:0.85em; transition:all 0.2s; color:#555;
+}
+.filter-btn:hover { border-color:#4a6fa5; color:#4a6fa5; }
+.filter-btn.active { background:#4a6fa5; color:#fff; border-color:#4a6fa5; }
+.search-box {
+  padding:5px 12px; border:1.5px solid #ccc; border-radius:16px; font-size:0.85em;
+  outline:none; width:180px; transition:border-color 0.2s;
+}
+.search-box:focus { border-color:#4a6fa5; }
+
+.legend { display:flex; gap:12px; margin-bottom:8px; font-size:0.78em; color:#888; flex-wrap:wrap; }
+.legend span { display:flex; align-items:center; gap:3px; }
+.legend .swatch { width:10px; height:10px; border-radius:2px; display:inline-block; }
+
+.table-wrap {
+  overflow-x:auto; background:#fff; border-radius:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.08);
+}
+table { width:100%; border-collapse:collapse; font-size:0.86em; min-width:1100px; }
+th {
+  background:#f8f9fb; padding:8px 6px; text-align:center; font-weight:600;
+  color:#555; border-bottom:2px solid #e0e4ea; white-space:nowrap; position:sticky; top:0;
+}
+td { padding:7px 5px; text-align:center; border-bottom:1px solid #f0f0f0; vertical-align:middle; }
+
+.word-cell { font-weight:600; color:#222; }
+.phonetic-cell { color:#888; font-size:0.82em; }
+.meaning-cell { color:#444; }
+
+.rev-cell { min-width:50px; padding:4px 2px; font-size:0.82em; border-radius:4px; }
+.rev-done { background:#e8f5e9; color:#2e7d32; font-weight:700; }
+.rev-due {
+  background:#fff176; color:#333; font-weight:700; cursor:pointer;
+  box-shadow:0 0 0 2px #fdd835; animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 2px #fdd835;} 50%{box-shadow:0 0 0 4px #fdd835aa;} }
+.rev-upcoming { color:#bbb; font-size:0.8em; }
+.rev-empty { color:#ddd; }
+
+.dict-input {
+  width:90px; padding:4px 8px; border:2px solid #ddd; border-radius:6px;
+  font-size:0.95em; text-align:center; outline:none; transition:border-color 0.2s;
+}
+.dict-input:focus { border-color:#4a6fa5; }
+.dict-input.correct { border-color:#4caf50; background:#e8f5e9; }
+.dict-input.wrong { border-color:#ef5350; background:#ffebee; }
+.feedback { font-size:0.78em; margin-top:2px; display:none; }
+.feedback.correct { color:#2e7d32; display:block; }
+.feedback.wrong { color:#c62828; display:block; }
+
+.err-count { font-weight:600; color:#e53935; }
+.err-count.zero { color:#ccc; }
+
+.no-data { text-align:center; padding:40px; color:#aaa; font-size:0.95em; }
+
+@media (max-width:768px) {
+  .header h1 { font-size:1em; }
+  .container { padding:8px 6px; }
+  table { font-size:0.8em; min-width:900px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>新概念英语第二册 · 背单词</h1>
+</div>
+
+<div class="container" id="app">
+  <div class="stats-bar" id="statsBar"></div>
+  <div class="toolbar">
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="due">今日待复习</button>
+    <button class="filter-btn" data-filter="fresh">未开始</button>
+    <button class="filter-btn" data-filter="done">全部完成</button>
+    <button class="filter-btn" data-filter="errors">错词本</button>
+    <input type="text" class="search-box" id="searchBox" placeholder="🔍 搜索单词...">
+  </div>
+  <div class="legend" id="legendBar">
+    <span><span class="swatch" style="background:#fff176;border:1px solid #fdd835;"></span> 今日待复习</span>
+    <span><span class="swatch" style="background:#e8f5e9;border:1px solid #a5d6a7;"></span> 已完成</span>
+    <span><span class="swatch" style="background:#f5f5f5;border:1px solid #ddd;"></span> 未到期</span>
+  </div>
+  <div class="table-wrap">
+    <table id="wordTable">
+      <thead id="tableHead"></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Quiz Modal -->
+<div id="quizOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:200;justify-content:center;align-items:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <h3 id="quizTitle" style="font-size:1.1em;margin-bottom:6px;"></h3>
+    <div id="quizPhonetic" style="color:#888;font-size:0.9em;margin-bottom:12px;"></div>
+    <div id="quizMeaning" style="background:#f5f0ff;padding:12px 16px;border-radius:10px;font-size:1.05em;color:#5e35b1;margin-bottom:16px;font-weight:500;"></div>
+    <input type="text" id="quizInput" placeholder="请输入英文单词..." style="width:100%;padding:10px 14px;border:2px solid #e0e0e0;border-radius:10px;font-size:1em;outline:none;margin-bottom:12px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')submitQuiz()">
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeQuiz()" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#f0f0f0;color:#666;">取消</button>
+      <button onclick="submitQuiz()" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#4a6fa5;color:#fff;">确认</button>
+    </div>
+    <div id="quizFb" style="margin-top:10px;padding:8px 12px;border-radius:8px;font-size:0.9em;text-align:center;display:none;"></div>
+  </div>
+</div>
+
+<script>
+// ============ WORD DATA ============
+const WORDS = [
+  {"id": 1, "word": "private", "phonetic": "/ˈpraɪvət/", "meaning": "adj. 私人的；私下的"},
+  {"id": 2, "word": "conversation", "phonetic": "/ˌkɒnvəˈseɪʃn/", "meaning": "n. 谈话，交谈"},
+  {"id": 3, "word": "theatre", "phonetic": "/ˈθɪətə(r)/", "meaning": "n. 剧场，戏院"},
+  {"id": 4, "word": "seat", "phonetic": "/siːt/", "meaning": "n. 座位"},
+  {"id": 5, "word": "play", "phonetic": "/pleɪ/", "meaning": "n. 戏，戏剧"},
+  {"id": 6, "word": "loudly", "phonetic": "/ˈlaʊdli/", "meaning": "adv. 大声地"},
+  {"id": 7, "word": "angry", "phonetic": "/ˈæŋɡri/", "meaning": "adj. 生气的"},
+  {"id": 8, "word": "angrily", "phonetic": "/ˈæŋɡrɪli/", "meaning": "adv. 生气地"},
+  {"id": 9, "word": "attention", "phonetic": "/əˈtenʃn/", "meaning": "n. 注意"},
+  {"id": 10, "word": "bear", "phonetic": "/beə(r)/", "meaning": "v. 容忍，忍受"},
+  {"id": 11, "word": "business", "phonetic": "/ˈbɪznəs/", "meaning": "n. 事；生意"},
+  {"id": 12, "word": "rudely", "phonetic": "/ˈruːdli/", "meaning": "adv. 无礼地，粗鲁地"},
+  {"id": 13, "word": "until", "phonetic": "/ənˈtɪl/", "meaning": "prep. & conj. 直到"},
+  {"id": 14, "word": "outside", "phonetic": "/ˌaʊtˈsaɪd/", "meaning": "adv. 在外面"},
+  {"id": 15, "word": "ring", "phonetic": "/rɪŋ/", "meaning": "v. （铃、电话）响"},
+  {"id": 16, "word": "aunt", "phonetic": "/ɑːnt/", "meaning": "n. 姑，姨，婶，舅妈"},
+  {"id": 17, "word": "repeat", "phonetic": "/rɪˈpiːt/", "meaning": "v. 重复"},
+  {"id": 18, "word": "send", "phonetic": "/send/", "meaning": "v. 寄，送"},
+  {"id": 19, "word": "postcard", "phonetic": "/ˈpəʊstkɑːd/", "meaning": "n. 明信片"},
+  {"id": 20, "word": "spoil", "phonetic": "/spɔɪl/", "meaning": "v. 使扫兴，损坏"},
+  {"id": 21, "word": "museum", "phonetic": "/mjuˈziːəm/", "meaning": "n. 博物馆"},
+  {"id": 22, "word": "public", "phonetic": "/ˈpʌblɪk/", "meaning": "adj. 公共的"},
+  {"id": 23, "word": "friendly", "phonetic": "/ˈfrendli/", "meaning": "adj. 友好的"},
+  {"id": 24, "word": "waiter", "phonetic": "/ˈweɪtə(r)/", "meaning": "n. 服务员，侍者"},
+  {"id": 25, "word": "lend", "phonetic": "/lend/", "meaning": "v. 借给"},
+  {"id": 26, "word": "decision", "phonetic": "/dɪˈsɪʒn/", "meaning": "n. 决定"},
+  {"id": 27, "word": "whole", "phonetic": "/həʊl/", "meaning": "adj. 整个的"},
+  {"id": 28, "word": "single", "phonetic": "/ˈsɪŋɡl/", "meaning": "adj. 唯一的，单一的"},
+  {"id": 29, "word": "exciting", "phonetic": "/ɪkˈsaɪtɪŋ/", "meaning": "adj. 令人兴奋的"},
+  {"id": 30, "word": "receive", "phonetic": "/rɪˈsiːv/", "meaning": "v. 收到，接到"},
+  {"id": 31, "word": "firm", "phonetic": "/fɜːm/", "meaning": "n. 商行，公司"},
+  {"id": 32, "word": "different", "phonetic": "/ˈdɪfrənt/", "meaning": "adj. 不同的"},
+  {"id": 33, "word": "center", "phonetic": "/ˈsentə(r)/", "meaning": "n.中心"},
+  {"id": 34, "word": "abroad", "phonetic": "/əˈbrɔːd/", "meaning": "adv. 在国外"},
+  {"id": 35, "word": "pigeon", "phonetic": "/ˈpɪdʒɪn/", "meaning": "n. 鸽子"},
+  {"id": 36, "word": "message", "phonetic": "/ˈmesɪdʒ/", "meaning": "n. 信息"},
+  {"id": 37, "word": "over", "phonetic": "/ˈəʊvə(r)/", "meaning": "prep. 越过"},
+  {"id": 38, "word": "distance", "phonetic": "/ˈdɪstəns/", "meaning": "n. 距离"},
+  {"id": 39, "word": "request", "phonetic": "/rɪˈkwest/", "meaning": "n. 要求，请求"},
+  {"id": 40, "word": "spare", "phonetic": "/speə(r)/", "meaning": "adj. 备用的"},
+  {"id": 41, "word": "service", "phonetic": "/ˈsɜːvɪs/", "meaning": "n. 服务，业务"},
+  {"id": 42, "word": "beggar", "phonetic": "/ˈbeɡə(r)/", "meaning": "n. 乞丐"},
+  {"id": 43, "word": "food", "phonetic": "/fuːd/", "meaning": "n. 食物"},
+  {"id": 44, "word": "pocket", "phonetic": "/ˈpɒkɪt/", "meaning": "n. 衣袋"},
+  {"id": 45, "word": "call", "phonetic": "/kɔːl/", "meaning": "v. 拜访；打电话"},
+  {"id": 46, "word": "detective", "phonetic": "/dɪˈtektɪv/", "meaning": "n. 侦探"},
+  {"id": 47, "word": "airport", "phonetic": "/ˈeəpɔːt/", "meaning": "n. 机场"},
+  {"id": 48, "word": "expect", "phonetic": "/ɪkˈspekt/", "meaning": "v. 期待，等待"},
+  {"id": 49, "word": "valuable", "phonetic": "/ˈvæljuəbl/", "meaning": "adj. 贵重的"},
+  {"id": 50, "word": "parcel", "phonetic": "/ˈpɑːsl/", "meaning": "n. 包裹"},
+  {"id": 51, "word": "diamond", "phonetic": "/ˈdaɪəmənd/", "meaning": "n. 钻石"},
+  {"id": 52, "word": "steal", "phonetic": "/stiːl/", "meaning": "v. 偷"},
+  {"id": 53, "word": "main", "phonetic": "/meɪn/", "meaning": "adj. 主要的"},
+  {"id": 54, "word": "guard", "phonetic": "/ɡɑːd/", "meaning": "n. 警卫，看守"},
+  {"id": 55, "word": "precious", "phonetic": "/ˈpreʃəs/", "meaning": "adj. 珍贵的"},
+  {"id": 56, "word": "stone", "phonetic": "/stəʊn/", "meaning": "n. 石头"},
+  {"id": 57, "word": "sand", "phonetic": "/sænd/", "meaning": "n. 沙子"},
+  {"id": 58, "word": "competition", "phonetic": "/ˌkɒmpəˈtɪʃn/", "meaning": "n. 比赛，竞赛"},
+  {"id": 59, "word": "neat", "phonetic": "/niːt/", "meaning": "adj. 整洁的，整齐的"},
+  {"id": 60, "word": "path", "phonetic": "/pɑːθ/", "meaning": "n. 小路，小径"},
+  {"id": 61, "word": "wooden", "phonetic": "/ˈwʊdn/", "meaning": "adj. 木制的"},
+  {"id": 62, "word": "pool", "phonetic": "/puːl/", "meaning": "n. 水池"},
+  {"id": 63, "word": "welcome", "phonetic": "/ˈwelkəm/", "meaning": "v. 欢迎"},
+  {"id": 64, "word": "crowd", "phonetic": "/kraʊd/", "meaning": "n. 人群"},
+  {"id": 65, "word": "gather", "phonetic": "/ˈɡæðə(r)/", "meaning": "v. 聚集"},
+  {"id": 66, "word": "hand", "phonetic": "/hænd/", "meaning": "n. （钟表）指针；手"},
+  {"id": 67, "word": "shout", "phonetic": "/ʃaʊt/", "meaning": "v. 喊叫"},
+  {"id": 68, "word": "refuse", "phonetic": "/rɪˈfjuːz/", "meaning": "v. 拒绝"},
+  {"id": 69, "word": "laugh", "phonetic": "/lɑːf/", "meaning": "v. 笑"},
+  {"id": 70, "word": "piano", "phonetic": "/piˈænəʊ/", "meaning": "n. 钢琴"},
+  {"id": 71, "word": "musical", "phonetic": "/ˈmjuːzɪkl/", "meaning": "adj. 音乐的"},
+  {"id": 72, "word": "instrument", "phonetic": "/ˈɪnstrəmənt/", "meaning": "n. 乐器"},
+  {"id": 73, "word": "damage", "phonetic": "/ˈdæmɪdʒ/", "meaning": "v. 损坏"},
+  {"id": 74, "word": "key", "phonetic": "/kiː/", "meaning": "n. 琴键；钥匙"},
+  {"id": 75, "word": "string", "phonetic": "/strɪŋ/", "meaning": "n. （乐器的）弦"},
+  {"id": 76, "word": "shock", "phonetic": "/ʃɒk/", "meaning": "v. 使震惊"},
+  {"id": 77, "word": "allow", "phonetic": "/əˈlaʊ/", "meaning": "v. 允许"},
+  {"id": 78, "word": "touch", "phonetic": "/tʌtʃ/", "meaning": "v. 触摸"},
+  {"id": 79, "word": "turn", "phonetic": "/tɜːn/", "meaning": "v. 转身"},
+  {"id": 80, "word": "deserve", "phonetic": "/dɪˈzɜːv/", "meaning": "v. 应得到，值得"},
+  {"id": 81, "word": "lawyer", "phonetic": "/ˈlɔːjə(r)/", "meaning": "n. 律师"},
+  {"id": 82, "word": "bank", "phonetic": "/bæŋk/", "meaning": "n. 银行"},
+  {"id": 83, "word": "salary", "phonetic": "/ˈsæləri/", "meaning": "n. 薪水"},
+  {"id": 84, "word": "immediate", "phonetic": "/ɪˈmiːdiət/", "meaning": "adj. 立刻的"},
+  {"id": 85, "word": "luck", "phonetic": "/lʌk/", "meaning": "n. 运气"},
+  {"id": 86, "word": "captain", "phonetic": "/ˈkæptɪn/", "meaning": "n. 船长"},
+  {"id": 87, "word": "sail", "phonetic": "/seɪl/", "meaning": "v. 航行"},
+  {"id": 88, "word": "harbour", "phonetic": "/ˈhɑːbə(r)/", "meaning": "n. 港口"},
+  {"id": 89, "word": "proud", "phonetic": "/praʊd/", "meaning": "adj. 自豪的"},
+  {"id": 90, "word": "important", "phonetic": "/ɪmˈpɔːtnt/", "meaning": "adj. 重要的"},
+  {"id": 91, "word": "group", "phonetic": "/ɡruːp/", "meaning": "n. 小组，团体"},
+  {"id": 92, "word": "pop singer", "phonetic": "/pɒp ˈsɪŋə(r)/", "meaning": "n. 流行歌手"},
+  {"id": 93, "word": "club", "phonetic": "/klʌb/", "meaning": "n. 俱乐部"},
+  {"id": 94, "word": "performance", "phonetic": "/pəˈfɔːməns/", "meaning": "n. 演出"},
+  {"id": 95, "word": "occasion", "phonetic": "/əˈkeɪʒn/", "meaning": "n. 场合"},
+  {"id": 96, "word": "amusing", "phonetic": "/əˈmjuːzɪŋ/", "meaning": "adj. 有趣的，好笑的"},
+  {"id": 97, "word": "experience", "phonetic": "/ɪkˈspɪəriəns/", "meaning": "n. 经历"},
+  {"id": 98, "word": "wave", "phonetic": "/weɪv/", "meaning": "v. 挥手"},
+  {"id": 99, "word": "lift", "phonetic": "/lɪft/", "meaning": "n. 搭便车"},
+  {"id": 100, "word": "reply", "phonetic": "/rɪˈplaɪ/", "meaning": "v. 回答"},
+  {"id": 101, "word": "language", "phonetic": "/ˈlæŋɡwɪdʒ/", "meaning": "n. 语言"},
+  {"id": 102, "word": "journey", "phonetic": "/ˈdʒɜːni/", "meaning": "n. 旅行"},
+  {"id": 103, "word": "secretary", "phonetic": "/ˈsekrətri/", "meaning": "n. 秘书"},
+  {"id": 104, "word": "nervous", "phonetic": "/ˈnɜːvəs/", "meaning": "adj. 紧张的"},
+  {"id": 105, "word": "afford", "phonetic": "/əˈfɔːd/", "meaning": "v. 负担得起"},
+  {"id": 106, "word": "weak", "phonetic": "/wiːk/", "meaning": "adj. 弱的"},
+  {"id": 107, "word": "interrupt", "phonetic": "/ˌɪntəˈrʌpt/", "meaning": "v. 打断，插话"},
+  {"id": 108, "word": "park", "phonetic": "/pɑːk/", "meaning": "v. 停放（汽车）"},
+  {"id": 109, "word": "traffic", "phonetic": "/ˈtræfɪk/", "meaning": "n. 交通"},
+  {"id": 110, "word": "ticket", "phonetic": "/ˈtɪkɪt/", "meaning": "n. 罚款单；票"},
+  {"id": 111, "word": "note", "phonetic": "/nəʊt/", "meaning": "n. 便条"},
+  {"id": 112, "word": "area", "phonetic": "/ˈeəriə/", "meaning": "n. 区域，地段"},
+  {"id": 113, "word": "sign", "phonetic": "/saɪn/", "meaning": "n. 指示牌"},
+  {"id": 114, "word": "reminder", "phonetic": "/rɪˈmaɪndə(r)/", "meaning": "n. 提示"},
+  {"id": 115, "word": "fail", "phonetic": "/feɪl/", "meaning": "v. 无视；失败"},
+  {"id": 116, "word": "obey", "phonetic": "/əˈbeɪ/", "meaning": "v. 服从，遵守"},
+  {"id": 117, "word": "appearance", "phonetic": "/əˈpɪərəns/", "meaning": "n. 外貌，外观"},
+  {"id": 118, "word": "act", "phonetic": "/ækt/", "meaning": "v. 扮演"},
+  {"id": 119, "word": "stage", "phonetic": "/steɪdʒ/", "meaning": "n. 舞台"},
+  {"id": 120, "word": "bright", "phonetic": "/braɪt/", "meaning": "adj. 明亮的"},
+  {"id": 121, "word": "stocking", "phonetic": "/ˈstɒkɪŋ/", "meaning": "n. 长筒袜"},
+  {"id": 122, "word": "sock", "phonetic": "/sɒk/", "meaning": "n. 短袜"},
+  {"id": 123, "word": "pub", "phonetic": "/pʌb/", "meaning": "n. 小酒馆"},
+  {"id": 124, "word": "landlord", "phonetic": "/ˈlændlɔːd/", "meaning": "n. 店主，老板"},
+  {"id": 125, "word": "bill", "phonetic": "/bɪl/", "meaning": "n. 账单"},
+  {"id": 126, "word": "hire", "phonetic": "/ˈhaɪə(r)/", "meaning": "v. 租用，雇佣"},
+  {"id": 127, "word": "hurry", "phonetic": "/ˈhʌri/", "meaning": "v. 匆忙"},
+  {"id": 128, "word": "ticket office", "phonetic": "/ˈtɪkɪt ˈɒfɪs/", "meaning": "n. 售票处"},
+  {"id": 129, "word": "pity", "phonetic": "/ˈpɪti/", "meaning": "n. 遗憾，可惜"},
+  {"id": 130, "word": "exclaim", "phonetic": "/ɪkˈskleɪm/", "meaning": "v. 呼喊，大声说"},
+  {"id": 131, "word": "return", "phonetic": "/rɪˈtɜːn/", "meaning": "v. 退回；返回"},
+  {"id": 132, "word": "sadly", "phonetic": "/ˈsædli/", "meaning": "adv. 难过地，沮丧地"},
+  {"id": 133, "word": "catch", "phonetic": "/kætʃ/", "meaning": "v. 抓到"},
+  {"id": 134, "word": "fisherman", "phonetic": "/ˈfɪʃəmən/", "meaning": "n. 渔民，钓鱼人"},
+  {"id": 135, "word": "boot", "phonetic": "/buːt/", "meaning": "n. 靴子"},
+  {"id": 136, "word": "waste", "phonetic": "/weɪst/", "meaning": "n. 浪费"},
+  {"id": 137, "word": "realize", "phonetic": "/ˈriːəlaɪz/", "meaning": "v. 意识到"},
+  {"id": 138, "word": "mad", "phonetic": "/mæd/", "meaning": "adj. 发疯的"},
+  {"id": 139, "word": "reason", "phonetic": "/ˈriːzn/", "meaning": "n. 原因"},
+  {"id": 140, "word": "sum", "phonetic": "/sʌm/", "meaning": "n. 款项；总和"},
+  {"id": 141, "word": "determined", "phonetic": "/dɪˈtɜːmɪnd/", "meaning": "adj. 坚定的，下决心的"},
+  {"id": 142, "word": "dream", "phonetic": "/driːm/", "meaning": "v. 做梦，梦想"},
+  {"id": 143, "word": "age", "phonetic": "/eɪdʒ/", "meaning": "n. 年龄"},
+  {"id": 144, "word": "channel", "phonetic": "/ˈtʃænl/", "meaning": "n. 海峡；频道"},
+  {"id": 145, "word": "throw", "phonetic": "/θrəʊ/", "meaning": "v. 扔，抛"},
+  {"id": 146, "word": "complete", "phonetic": "/kəmˈpliːt/", "meaning": "v. 完成"},
+  {"id": 147, "word": "modern", "phonetic": "/ˈmɒdn/", "meaning": "adj. 新式的，现代的"},
+  {"id": 148, "word": "strange", "phonetic": "/streɪndʒ/", "meaning": "adj. 奇怪的"},
+  {"id": 149, "word": "district", "phonetic": "/ˈdɪstrɪkt/", "meaning": "n. 地区，区域"},
+  {"id": 150, "word": "manager", "phonetic": "/ˈmænɪdʒə(r)/", "meaning": "n. 经理"},
+  {"id": 151, "word": "upset", "phonetic": "/ʌpˈset/", "meaning": "adj. 不安的"},
+  {"id": 152, "word": "sympathetic", "phonetic": "/ˌsɪmpəˈθetɪk/", "meaning": "adj. 同情的"},
+  {"id": 153, "word": "complaint", "phonetic": "/kəmˈpleɪnt/", "meaning": "n. 抱怨"},
+  {"id": 154, "word": "wicked", "phonetic": "/ˈwɪkɪd/", "meaning": "adj. 很坏的，邪恶的"},
+  {"id": 155, "word": "contain", "phonetic": "/kənˈteɪn/", "meaning": "v. 包含，内装"},
+  {"id": 156, "word": "honesty", "phonetic": "/ˈɒnəsti/", "meaning": "n. 诚实"},
+  {"id": 157, "word": "railway", "phonetic": "/ˈreɪlweɪ/", "meaning": "n. 铁路"},
+  {"id": 158, "word": "tunnel", "phonetic": "/ˈtʌnl/", "meaning": "n. 隧道"},
+  {"id": 159, "word": "portal", "phonetic": "/ˈpɔːtl/", "meaning": "n. 入口"},
+  {"id": 160, "word": "ventilate", "phonetic": "/ˈventɪleɪt/", "meaning": "v. 通风"},
+  {"id": 161, "word": "fear", "phonetic": "/fɪə(r)/", "meaning": "v. 害怕"},
+  {"id": 162, "word": "invasion", "phonetic": "/ɪnˈveɪʒn/", "meaning": "n. 入侵，侵略"},
+  {"id": 163, "word": "art", "phonetic": "/ɑːt/", "meaning": "n. 艺术"},
+  {"id": 164, "word": "critic", "phonetic": "/ˈkrɪtɪk/", "meaning": "n. 评论家，批评家"},
+  {"id": 165, "word": "paint", "phonetic": "/peɪnt/", "meaning": "v. 画；粉刷"},
+  {"id": 166, "word": "pretend", "phonetic": "/prɪˈtend/", "meaning": "v. 假装"},
+  {"id": 167, "word": "pattern", "phonetic": "/ˈpætn/", "meaning": "n. 图案"},
+  {"id": 168, "word": "curtain", "phonetic": "/ˈkɜːtn/", "meaning": "n. 窗帘"},
+  {"id": 169, "word": "material", "phonetic": "/məˈtɪəriəl/", "meaning": "n. 材料"},
+  {"id": 170, "word": "appreciate", "phonetic": "/əˈpriːʃieɪt/", "meaning": "v. 鉴赏，欣赏"},
+  {"id": 171, "word": "tent", "phonetic": "/tent/", "meaning": "n. 帐篷"},
+  {"id": 172, "word": "field", "phonetic": "/fiːld/", "meaning": "n. 田地，田野"},
+  {"id": 173, "word": "smell", "phonetic": "/smel/", "meaning": "v. 闻起来"},
+  {"id": 174, "word": "wonderful", "phonetic": "/ˈwʌndəfl/", "meaning": "adj. 极好的"},
+  {"id": 175, "word": "camp", "phonetic": "/kæmp/", "meaning": "v. 露营，宿营"},
+  {"id": 176, "word": "stream", "phonetic": "/striːm/", "meaning": "n. 小溪"},
+  {"id": 177, "word": "rare", "phonetic": "/reə(r)/", "meaning": "adj. 罕见的，稀有的"},
+  {"id": 178, "word": "ancient", "phonetic": "/ˈeɪnʃənt/", "meaning": "adj. 古代的，古老的"},
+  {"id": 179, "word": "myth", "phonetic": "/mɪθ/", "meaning": "n. 神话故事"},
+  {"id": 180, "word": "trouble", "phonetic": "/ˈtrʌbl/", "meaning": "n. 麻烦"},
+  {"id": 181, "word": "effect", "phonetic": "/ɪˈfekt/", "meaning": "n. 结果，效果"},
+  {"id": 182, "word": "Medusa", "phonetic": "/məˈdjuːzə/", "meaning": "n. 美杜莎（神话人物）"},
+  {"id": 183, "word": "Gorgon", "phonetic": "/ˈɡɔːɡən/", "meaning": "n. 戈耳工（女妖）"},
+  {"id": 184, "word": "taxi", "phonetic": "/ˈtæksi/", "meaning": "n. 出租车"},
+  {"id": 185, "word": "pilot", "phonetic": "/ˈpaɪlət/", "meaning": "n. 飞行员"},
+  {"id": 186, "word": "land", "phonetic": "/lænd/", "meaning": "v. 着陆"},
+  {"id": 187, "word": "lonely", "phonetic": "/ˈləʊnli/", "meaning": "adj. 偏僻的，孤独的"},
+  {"id": 188, "word": "roof", "phonetic": "/ruːf/", "meaning": "n. 屋顶"},
+  {"id": 189, "word": "block", "phonetic": "/blɒk/", "meaning": "n. 大楼，街区"},
+  {"id": 190, "word": "flat", "phonetic": "/flæt/", "meaning": "n. 公寓"},
+  {"id": 191, "word": "football", "phonetic": "/ˈfʊtbɔːl/", "meaning": "n. 足球"},
+  {"id": 192, "word": "pool", "phonetic": "/puːl/", "meaning": "n. 水塘"},
+  {"id": 193, "word": "cut", "phonetic": "/kʌt/", "meaning": "v. 割，划"},
+  {"id": 194, "word": "row", "phonetic": "/rəʊ/", "meaning": "v. 划（船）"},
+  {"id": 195, "word": "kick", "phonetic": "/kɪk/", "meaning": "v. 踢"},
+  {"id": 196, "word": "towards", "phonetic": "/təˈwɔːdz/", "meaning": "prep. 朝，向"},
+  {"id": 197, "word": "nearly", "phonetic": "/ˈnɪəli/", "meaning": "adv. 几乎，将近"},
+  {"id": 198, "word": "retire", "phonetic": "/rɪˈtaɪə(r)/", "meaning": "v. 退休"},
+  {"id": 199, "word": "company", "phonetic": "/ˈkʌmpəni/", "meaning": "n. 公司"},
+  {"id": 200, "word": "bicycle", "phonetic": "/ˈbaɪsɪkl/", "meaning": "n. 自行车"},
+  {"id": 201, "word": "save", "phonetic": "/seɪv/", "meaning": "v. 积蓄；挽救"},
+  {"id": 202, "word": "workshop", "phonetic": "/ˈwɜːkʃɒp/", "meaning": "n. 车间"},
+  {"id": 203, "word": "helper", "phonetic": "/ˈhelpə(r)/", "meaning": "n. 帮手，助手"},
+  {"id": 204, "word": "employ", "phonetic": "/ɪmˈplɔɪ/", "meaning": "v. 雇佣"},
+  {"id": 205, "word": "shopping", "phonetic": "/ˈʃɒpɪŋ/", "meaning": "n. 购物"},
+  {"id": 206, "word": "habit", "phonetic": "/ˈhæbɪt/", "meaning": "n. 习惯"},
+  {"id": 207, "word": "collect", "phonetic": "/kəˈlekt/", "meaning": "v. 收集"},
+  {"id": 208, "word": "wrap", "phonetic": "/ræp/", "meaning": "v. 包裹"},
+  {"id": 209, "word": "simply", "phonetic": "/ˈsɪmpli/", "meaning": "adv. 仅仅，简单地"},
+  {"id": 210, "word": "arrest", "phonetic": "/əˈrest/", "meaning": "v. 逮捕"},
+  {"id": 211, "word": "darkness", "phonetic": "/ˈdɑːknəs/", "meaning": "n. 黑暗"},
+  {"id": 212, "word": "explain", "phonetic": "/ɪkˈspleɪn/", "meaning": "v. 解释，叙述"},
+  {"id": 213, "word": "coast", "phonetic": "/kəʊst/", "meaning": "n. 海岸"},
+  {"id": 214, "word": "storm", "phonetic": "/stɔːm/", "meaning": "n. 暴风雨"},
+  {"id": 215, "word": "towards", "phonetic": "/təˈwɔːdz/", "meaning": "prep. 向，朝"},
+  {"id": 216, "word": "rock", "phonetic": "/rɒk/", "meaning": "n. 岩石"},
+  {"id": 217, "word": "shore", "phonetic": "/ʃɔː(r)/", "meaning": "n. 海岸"},
+  {"id": 218, "word": "light", "phonetic": "/laɪt/", "meaning": "n. 灯光"},
+  {"id": 219, "word": "ahead", "phonetic": "/əˈhed/", "meaning": "adv. 在前面"},
+  {"id": 220, "word": "station", "phonetic": "/ˈsteɪʃn/", "meaning": "n. （警察）局；车站"},
+  {"id": 221, "word": "most", "phonetic": "/məʊst/", "meaning": "adv. 相当，非常"},
+  {"id": 222, "word": "report", "phonetic": "/rɪˈpɔːt/", "meaning": "v. 报告"},
+  {"id": 223, "word": "thief", "phonetic": "/θiːf/", "meaning": "n. 小偷"},
+  {"id": 224, "word": "during", "phonetic": "/ˈdjʊərɪŋ/", "meaning": "prep. 在……期间"},
+  {"id": 225, "word": "while", "phonetic": "/waɪl/", "meaning": "n. 一段时间"},
+  {"id": 226, "word": "regret", "phonetic": "/rɪˈɡret/", "meaning": "v. 后悔，惋惜"},
+  {"id": 227, "word": "far", "phonetic": "/fɑː(r)/", "meaning": "adv. 非常；远"},
+  {"id": 228, "word": "rush", "phonetic": "/rʌʃ/", "meaning": "v. 冲"},
+  {"id": 229, "word": "act", "phonetic": "/ækt/", "meaning": "v. 行动"},
+  {"id": 230, "word": "straight", "phonetic": "/streɪt/", "meaning": "adv. 径直"},
+  {"id": 231, "word": "fright", "phonetic": "/fraɪt/", "meaning": "n. 恐惧"},
+  {"id": 232, "word": "record", "phonetic": "/ˈrekɔːd/", "meaning": "n. 记录"},
+  {"id": 233, "word": "strong", "phonetic": "/strɒŋ/", "meaning": "adj. 强壮的"},
+  {"id": 234, "word": "swim", "phonetic": "/swɪm/", "meaning": "v. 游泳"},
+  {"id": 235, "word": "succeed", "phonetic": "/səkˈsiːd/", "meaning": "v. 成功"},
+  {"id": 236, "word": "train", "phonetic": "/treɪn/", "meaning": "v. 训练"},
+  {"id": 237, "word": "anxiously", "phonetic": "/ˈæŋkʃəsli/", "meaning": "adv. 焦急地"},
+  {"id": 238, "word": "intend", "phonetic": "/ɪnˈtend/", "meaning": "v. 打算"},
+  {"id": 239, "word": "Olympic", "phonetic": "/əˈlɪmpɪk/", "meaning": "adj. 奥林匹克的"},
+  {"id": 240, "word": "hold", "phonetic": "/həʊld/", "meaning": "v. 举行"},
+  {"id": 241, "word": "government", "phonetic": "/ˈɡʌvənmənt/", "meaning": "n. 政府"},
+  {"id": 242, "word": "immense", "phonetic": "/ɪˈmens/", "meaning": "adj. 巨大的"},
+  {"id": 243, "word": "stadium", "phonetic": "/ˈsteɪdiəm/", "meaning": "n. 露天体育场"},
+  {"id": 244, "word": "standard", "phonetic": "/ˈstændəd/", "meaning": "n. 标准"},
+  {"id": 245, "word": "capital", "phonetic": "/ˈkæpɪtl/", "meaning": "n. 首都"},
+  {"id": 246, "word": "fantastic", "phonetic": "/fænˈtæstɪk/", "meaning": "adj. 巨大的；极好的"},
+  {"id": 247, "word": "except", "phonetic": "/ɪkˈsept/", "meaning": "prep. 除了"},
+  {"id": 248, "word": "Mediterranean", "phonetic": "/ˌmedɪtəˈreɪniən/", "meaning": "n. 地中海"},
+  {"id": 249, "word": "complain", "phonetic": "/kəmˈpleɪn/", "meaning": "v. 抱怨"},
+  {"id": 250, "word": "continually", "phonetic": "/kənˈtɪnjuəli/", "meaning": "adv. 不断地"},
+  {"id": 251, "word": "bitterly", "phonetic": "/ˈbɪtəli/", "meaning": "adv. 刺骨地；伤心地"},
+  {"id": 252, "word": "sunshine", "phonetic": "/ˈsʌnʃaɪn/", "meaning": "n. 阳光"},
+  {"id": 253, "word": "operation", "phonetic": "/ˌɒpəˈreɪʃn/", "meaning": "n. 手术"},
+  {"id": 254, "word": "successful", "phonetic": "/səkˈsesfl/", "meaning": "adj. 成功的"},
+  {"id": 255, "word": "following", "phonetic": "/ˈfɒləʊɪŋ/", "meaning": "adj. 下一个"},
+  {"id": 256, "word": "patient", "phonetic": "/ˈpeɪʃnt/", "meaning": "n. 病人"},
+  {"id": 257, "word": "alone", "phonetic": "/əˈləʊn/", "meaning": "adj. 独自的"},
+  {"id": 258, "word": "exchange", "phonetic": "/ɪksˈtʃeɪndʒ/", "meaning": "v. 交换"},
+  {"id": 259, "word": "hostess", "phonetic": "/ˈhəʊstəs/", "meaning": "n. 女主人"},
+  {"id": 260, "word": "unsmiling", "phonetic": "/ʌnˈsmaɪlɪŋ/", "meaning": "adj. 不苟言笑的"},
+  {"id": 261, "word": "tight", "phonetic": "/taɪt/", "meaning": "adj. 紧身的"},
+  {"id": 262, "word": "fix", "phonetic": "/fɪks/", "meaning": "v. 凝视；固定"},
+  {"id": 263, "word": "globe", "phonetic": "/ɡləʊb/", "meaning": "n. 地球仪；地球"},
+  {"id": 264, "word": "despair", "phonetic": "/dɪˈspeə(r)/", "meaning": "v. 绝望"},
+  {"id": 265, "word": "rude", "phonetic": "/ruːd/", "meaning": "adj. 无礼的"},
+  {"id": 266, "word": "mirror", "phonetic": "/ˈmɪrə(r)/", "meaning": "n. 镜子"},
+  {"id": 267, "word": "hole", "phonetic": "/həʊl/", "meaning": "n. 洞"},
+  {"id": 268, "word": "remark", "phonetic": "/rɪˈmɑːk/", "meaning": "v. 评说"},
+  {"id": 269, "word": "remind", "phonetic": "/rɪˈmaɪnd/", "meaning": "v. 提醒"},
+  {"id": 270, "word": "lighthouse", "phonetic": "/ˈlaɪthaʊs/", "meaning": "n. 灯塔"},
+  {"id": 271, "word": "musical", "phonetic": "/ˈmjuːzɪkl/", "meaning": "adj. 音乐的"},
+  {"id": 272, "word": "market", "phonetic": "/ˈmɑːkɪt/", "meaning": "n. 市场"},
+  {"id": 273, "word": "snake", "phonetic": "/sneɪk/", "meaning": "n. 蛇"},
+  {"id": 274, "word": "pipe", "phonetic": "/paɪp/", "meaning": "n. 管乐器；管子"},
+  {"id": 275, "word": "tune", "phonetic": "/tjuːn/", "meaning": "n. 曲调"},
+  {"id": 276, "word": "glimpse", "phonetic": "/ɡlɪmps/", "meaning": "v. 一瞥，看一眼"},
+  {"id": 277, "word": "continue", "phonetic": "/kənˈtɪnjuː/", "meaning": "v. 继续"},
+  {"id": 278, "word": "pilot", "phonetic": "/ˈpaɪlət/", "meaning": "n. 飞行员"},
+  {"id": 279, "word": "mountain", "phonetic": "/ˈmaʊntən/", "meaning": "n. 山"},
+  {"id": 280, "word": "plain", "phonetic": "/pleɪn/", "meaning": "n. 平原"},
+  {"id": 281, "word": "climb", "phonetic": "/klaɪm/", "meaning": "v. 攀登，爬"},
+  {"id": 282, "word": "attempt", "phonetic": "/əˈtempt/", "meaning": "v. 试图"},
+  {"id": 283, "word": "succeed", "phonetic": "/səkˈsiːd/", "meaning": "v. 成功"},
+  {"id": 284, "word": "risk", "phonetic": "/rɪsk/", "meaning": "n. 风险"},
+  {"id": 285, "word": "forest", "phonetic": "/ˈfɒrɪst/", "meaning": "n. 森林"},
+  {"id": 286, "word": "catch", "phonetic": "/kætʃ/", "meaning": "v. 抓住"},
+  {"id": 287, "word": "fisherman", "phonetic": "/ˈfɪʃəmən/", "meaning": "n. 渔民"},
+  {"id": 288, "word": "boot", "phonetic": "/buːt/", "meaning": "n. 靴子"},
+  {"id": 289, "word": "rush", "phonetic": "/rʌʃ/", "meaning": "v. 冲，奔"},
+  {"id": 290, "word": "straight", "phonetic": "/streɪt/", "meaning": "adv. 径直地"},
+  {"id": 291, "word": "fence", "phonetic": "/fens/", "meaning": "n. 篱笆"},
+  {"id": 292, "word": "clear", "phonetic": "/klɪə(r)/", "meaning": "adj. 清白的；清晰的"},
+  {"id": 293, "word": "conscience", "phonetic": "/ˈkɒnʃəns/", "meaning": "n. 良心，道德心"},
+  {"id": 294, "word": "wallet", "phonetic": "/ˈwɒlɪt/", "meaning": "n. 皮夹，钱包"},
+  {"id": 295, "word": "savings", "phonetic": "/ˈseɪvɪŋz/", "meaning": "n. 存款"},
+  {"id": 296, "word": "villager", "phonetic": "/ˈvɪlɪdʒə(r)/", "meaning": "n. 村民"},
+  {"id": 297, "word": "percent", "phonetic": "/pəˈsent/", "meaning": "n. 百分比"},
+  {"id": 298, "word": "unload", "phonetic": "/ˌʌnˈləʊd/", "meaning": "v. 卸（货）"},
+  {"id": 299, "word": "wooden", "phonetic": "/ˈwʊdn/", "meaning": "adj. 木制的"},
+  {"id": 300, "word": "extremely", "phonetic": "/ɪkˈstriːmli/", "meaning": "adv. 非常，极其"},
+  {"id": 301, "word": "occur", "phonetic": "/əˈkɜː(r)/", "meaning": "v. 发生"},
+  {"id": 302, "word": "astonish", "phonetic": "/əˈstɒnɪʃ/", "meaning": "v. 使惊讶"},
+  {"id": 303, "word": "pile", "phonetic": "/paɪl/", "meaning": "n. 堆"},
+  {"id": 304, "word": "woolen", "phonetic": "/ˈwʊlən/", "meaning": "adj. 羊毛的"},
+  {"id": 305, "word": "goods", "phonetic": "/ɡʊdz/", "meaning": "n. 货物，商品"},
+  {"id": 306, "word": "discover", "phonetic": "/dɪˈskʌvə(r)/", "meaning": "v. 发现"},
+  {"id": 307, "word": "admit", "phonetic": "/ədˈmɪt/", "meaning": "v. 承认"},
+  {"id": 308, "word": "thirsty", "phonetic": "/ˈθɜːsti/", "meaning": "adj. 贪杯的；渴的"},
+  {"id": 309, "word": "ghost", "phonetic": "/ɡəʊst/", "meaning": "n. 鬼魂"},
+  {"id": 310, "word": "haunt", "phonetic": "/hɔːnt/", "meaning": "v. （鬼）来访，闹鬼"},
+  {"id": 311, "word": "block", "phonetic": "/blɒk/", "meaning": "n. 大楼"},
+  {"id": 312, "word": "furniture", "phonetic": "/ˈfɜːnɪtʃə(r)/", "meaning": "n. 家具"},
+  {"id": 313, "word": "whisper", "phonetic": "/ˈwɪspə(r)/", "meaning": "v. 低语，小声说"},
+  {"id": 314, "word": "suggest", "phonetic": "/səˈdʒest/", "meaning": "v. 暗示，建议"},
+  {"id": 315, "word": "pull", "phonetic": "/pʊl/", "meaning": "v. 拔，拉"},
+  {"id": 316, "word": "cotton", "phonetic": "/ˈkɒtn/", "meaning": "n. 棉花"},
+  {"id": 317, "word": "collect", "phonetic": "/kəˈlekt/", "meaning": "v. 收集"},
+  {"id": 318, "word": "collection", "phonetic": "/kəˈlekʃn/", "meaning": "n. 收藏品"},
+  {"id": 319, "word": "meanwhile", "phonetic": "/ˈmiːnwaɪl/", "meaning": "adv. 与此同时"},
+  {"id": 320, "word": "tired", "phonetic": "/ˈtaɪəd/", "meaning": "adj. 厌烦的"},
+  {"id": 321, "word": "real", "phonetic": "/riːl/", "meaning": "adj. 真正的"},
+  {"id": 322, "word": "owner", "phonetic": "/ˈəʊnə(r)/", "meaning": "n. 主人"},
+  {"id": 323, "word": "spring", "phonetic": "/sprɪŋ/", "meaning": "n. 弹簧；泉水"},
+  {"id": 324, "word": "mattress", "phonetic": "/ˈmætrəs/", "meaning": "n. 床垫"},
+  {"id": 325, "word": "gust", "phonetic": "/ɡʌst/", "meaning": "n. 一阵风"},
+  {"id": 326, "word": "sweep", "phonetic": "/swiːp/", "meaning": "v. 扫，刮"},
+  {"id": 327, "word": "courtyard", "phonetic": "/ˈkɔːtjɑːd/", "meaning": "n. 院子"},
+  {"id": 328, "word": "ride", "phonetic": "/raɪd/", "meaning": "n. 旅行，骑乘"},
+  {"id": 329, "word": "excursion", "phonetic": "/ɪkˈskɜːʃn/", "meaning": "n. 远足，短途旅行"},
+  {"id": 330, "word": "conductor", "phonetic": "/kənˈdʌktə(r)/", "meaning": "n. 售票员"},
+  {"id": 331, "word": "view", "phonetic": "/vjuː/", "meaning": "n. 景色"},
+  {"id": 332, "word": "reward", "phonetic": "/rɪˈwɔːd/", "meaning": "n. 报酬，奖金"},
+  {"id": 333, "word": "virtue", "phonetic": "/ˈvɜːtʃuː/", "meaning": "n. 美德"},
+  {"id": 334, "word": "diet", "phonetic": "/ˈdaɪət/", "meaning": "n. 节食；饮食"},
+  {"id": 335, "word": "forbid", "phonetic": "/fəˈbɪd/", "meaning": "v. 禁止"},
+  {"id": 336, "word": "hurriedly", "phonetic": "/ˈhʌridli/", "meaning": "adv. 匆忙地"},
+  {"id": 337, "word": "embarrass", "phonetic": "/ɪmˈbærəs/", "meaning": "v. 使尴尬"},
+  {"id": 338, "word": "temporarily", "phonetic": "/ˈtemprərəli/", "meaning": "adv. 暂时地"},
+  {"id": 339, "word": "inch", "phonetic": "/ɪntʃ/", "meaning": "n. 英寸"},
+  {"id": 340, "word": "space", "phonetic": "/speɪs/", "meaning": "n. 空间"},
+  {"id": 341, "word": "actually", "phonetic": "/ˈæktʃuəli/", "meaning": "adv. 实际上"},
+  {"id": 342, "word": "gaze", "phonetic": "/ɡeɪz/", "meaning": "v. 凝视，盯着"},
+  {"id": 343, "word": "hot", "phonetic": "/hɒt/", "meaning": "adj. 炎热的"},
+  {"id": 344, "word": "fireman", "phonetic": "/ˈfaɪəmən/", "meaning": "n. 消防队员"},
+  {"id": 345, "word": "cause", "phonetic": "/kɔːz/", "meaning": "v. 引起"},
+  {"id": 346, "word": "examine", "phonetic": "/ɪɡˈzæmɪn/", "meaning": "v. 检查"},
+  {"id": 347, "word": "accidentally", "phonetic": "/ˌæksɪˈdentəli/", "meaning": "adv. 意外地"},
+  {"id": 348, "word": "remain", "phonetic": "/rɪˈmeɪn/", "meaning": "v. 仍然，保持"},
+  {"id": 349, "word": "wire", "phonetic": "/ˈwaɪə(r)/", "meaning": "n. 电线"},
+  {"id": 350, "word": "volt", "phonetic": "/vəʊlt/", "meaning": "n. 伏特（电压单位）"},
+  {"id": 351, "word": "power", "phonetic": "/ˈpaʊə(r)/", "meaning": "n. 电力"},
+  {"id": 352, "word": "sticky", "phonetic": "/ˈstɪki/", "meaning": "adj. 粘的"},
+  {"id": 353, "word": "finger", "phonetic": "/ˈfɪŋɡə(r)/", "meaning": "n. 手指"},
+  {"id": 354, "word": "pie", "phonetic": "/paɪ/", "meaning": "n. 馅饼"},
+  {"id": 355, "word": "mix", "phonetic": "/mɪks/", "meaning": "v. 混合，拌和"},
+  {"id": 356, "word": "pastry", "phonetic": "/ˈpeɪstri/", "meaning": "n. 面糊，面团"},
+  {"id": 357, "word": "annoying", "phonetic": "/əˈnɔɪɪŋ/", "meaning": "adj. 恼人的"},
+  {"id": 358, "word": "receiver", "phonetic": "/rɪˈsiːvə(r)/", "meaning": "n. 电话听筒"},
+  {"id": 359, "word": "gold", "phonetic": "/ɡəʊld/", "meaning": "n. 金子"},
+  {"id": 360, "word": "mine", "phonetic": "/maɪn/", "meaning": "n. 矿"},
+  {"id": 361, "word": "treasure", "phonetic": "/ˈtreʒə(r)/", "meaning": "n. 财宝"},
+  {"id": 362, "word": "reveal", "phonetic": "/rɪˈviːl/", "meaning": "v. 透露，显示"},
+  {"id": 363, "word": "invent", "phonetic": "/ɪnˈvent/", "meaning": "v. 发明"},
+  {"id": 364, "word": "detect", "phonetic": "/dɪˈtekt/", "meaning": "v. 探测"},
+  {"id": 365, "word": "bury", "phonetic": "/ˈberi/", "meaning": "v. 埋藏"},
+  {"id": 366, "word": "cave", "phonetic": "/keɪv/", "meaning": "n. 山洞"},
+  {"id": 367, "word": "seashore", "phonetic": "/ˈsiːʃɔː(r)/", "meaning": "n. 海岸"},
+  {"id": 368, "word": "sound", "phonetic": "/saʊnd/", "meaning": "n. 声音"},
+  {"id": 369, "word": "excitement", "phonetic": "/ɪkˈsaɪtmənt/", "meaning": "n. 兴奋，激动"},
+  {"id": 370, "word": "handsome", "phonetic": "/ˈhænsəm/", "meaning": "adj. 漂亮的，美观的"},
+  {"id": 371, "word": "wheel", "phonetic": "/wiːl/", "meaning": "n. 轮子"},
+  {"id": 372, "word": "explosion", "phonetic": "/ɪkˈspləʊʒn/", "meaning": "n. 爆炸"},
+  {"id": 373, "word": "rival", "phonetic": "/ˈraɪvl/", "meaning": "n. 对手"},
+  {"id": 374, "word": "speed", "phonetic": "/spiːd/", "meaning": "v. 疾驶"},
+  {"id": 375, "word": "downhill", "phonetic": "/ˌdaʊnˈhɪl/", "meaning": "adv. 下坡"},
+  {"id": 376, "word": "madam", "phonetic": "/ˈmædəm/", "meaning": "n. 夫人，女士"},
+  {"id": 377, "word": "jeans", "phonetic": "/dʒiːnz/", "meaning": "n. 牛仔裤"},
+  {"id": 378, "word": "hesitate", "phonetic": "/ˈhezɪteɪt/", "meaning": "v. 犹豫，迟疑"},
+  {"id": 379, "word": "serve", "phonetic": "/sɜːv/", "meaning": "v. 接待，服务"},
+  {"id": 380, "word": "scorn", "phonetic": "/skɔːn/", "meaning": "v. 轻视，看不起"},
+  {"id": 381, "word": "punish", "phonetic": "/ˈpʌnɪʃ/", "meaning": "v. 惩罚"},
+  {"id": 382, "word": "bless", "phonetic": "/bles/", "meaning": "v. 保佑，祈福"},
+  {"id": 383, "word": "evil", "phonetic": "/ˈiːvl/", "meaning": "adj. 邪恶的"},
+  {"id": 384, "word": "reputation", "phonetic": "/ˌrepjuˈteɪʃn/", "meaning": "n. 名声"},
+  {"id": 385, "word": "claim", "phonetic": "/kleɪm/", "meaning": "v. 声称"},
+  {"id": 386, "word": "victim", "phonetic": "/ˈvɪktɪm/", "meaning": "n. 受害者"},
+  {"id": 387, "word": "possess", "phonetic": "/pəˈzes/", "meaning": "v. 拥有"},
+  {"id": 388, "word": "curious", "phonetic": "/ˈkjʊəriəs/", "meaning": "adj. 好奇的"},
+  {"id": 389, "word": "bark", "phonetic": "/bɑːk/", "meaning": "v. 狗叫"},
+  {"id": 390, "word": "press", "phonetic": "/pres/", "meaning": "v. 按，压"},
+  {"id": 391, "word": "paw", "phonetic": "/pɔː/", "meaning": "n. 爪子"},
+  {"id": 392, "word": "latch", "phonetic": "/lætʃ/", "meaning": "n. 门闩"},
+  {"id": 393, "word": "expert", "phonetic": "/ˈekspɜːt/", "meaning": "n. 专家"},
+  {"id": 394, "word": "develop", "phonetic": "/dɪˈveləp/", "meaning": "v. 养成；发展"},
+  {"id": 395, "word": "habit", "phonetic": "/ˈhæbɪt/", "meaning": "n. 习惯"},
+  {"id": 396, "word": "future", "phonetic": "/ˈfjuːtʃə(r)/", "meaning": "n. 未来，前途"},
+  {"id": 397, "word": "fair", "phonetic": "/feə(r)/", "meaning": "n. 集市"},
+  {"id": 398, "word": "fortune-teller", "phonetic": "/ˈfɔːtʃən telə(r)/", "meaning": "n. 算命人"},
+  {"id": 399, "word": "crystal", "phonetic": "/ˈkrɪstl/", "meaning": "n. 水晶"},
+  {"id": 400, "word": "relation", "phonetic": "/rɪˈleɪʃn/", "meaning": "n. 亲属"},
+  {"id": 401, "word": "impatient", "phonetic": "/ɪmˈpeɪʃnt/", "meaning": "adj. 不耐烦的"},
+  {"id": 402, "word": "Hubble", "phonetic": "/ˈhʌbl/", "meaning": "n. 哈勃（望远镜）"},
+  {"id": 403, "word": "telescope", "phonetic": "/ˈtelɪskəʊp/", "meaning": "n. 望远镜"},
+  {"id": 404, "word": "launch", "phonetic": "/lɔːntʃ/", "meaning": "v. 发射"},
+  {"id": 405, "word": "space", "phonetic": "/speɪs/", "meaning": "n. 太空"},
+  {"id": 406, "word": "astronaut", "phonetic": "/ˈæstrənɔːt/", "meaning": "n. 宇航员"},
+  {"id": 407, "word": "repair", "phonetic": "/rɪˈpeə(r)/", "meaning": "v. 修理"},
+  {"id": 408, "word": "faulty", "phonetic": "/ˈfɔːlti/", "meaning": "adj. 有故障的"},
+  {"id": 409, "word": "grab", "phonetic": "/ɡræb/", "meaning": "v. 抓住"},
+  {"id": 410, "word": "control", "phonetic": "/kənˈtrəʊl/", "meaning": "n. 控制"},
+  {"id": 411, "word": "smoke", "phonetic": "/sməʊk/", "meaning": "n. 烟"},
+  {"id": 412, "word": "desolate", "phonetic": "/ˈdesələt/", "meaning": "adj. 荒凉的"},
+  {"id": 413, "word": "threaten", "phonetic": "/ˈθretn/", "meaning": "v. 威胁"},
+  {"id": 414, "word": "surrounding", "phonetic": "/səˈraʊndɪŋ/", "meaning": "adj. 周围的"},
+  {"id": 415, "word": "destruction", "phonetic": "/dɪˈstrʌkʃn/", "meaning": "n. 破坏，毁灭"},
+  {"id": 416, "word": "flood", "phonetic": "/flʌd/", "meaning": "n. 洪水"},
+  {"id": 417, "word": "authority", "phonetic": "/ɔːˈθɒrəti/", "meaning": "n. 当局，官方"},
+  {"id": 418, "word": "circle", "phonetic": "/ˈsɜːkl/", "meaning": "n. 圈子，圈"},
+  {"id": 419, "word": "admire", "phonetic": "/ədˈmaɪə(r)/", "meaning": "v. 赞美，钦佩"},
+  {"id": 420, "word": "close", "phonetic": "/kləʊz/", "meaning": "adj. 亲密的"},
+  {"id": 421, "word": "wedding", "phonetic": "/ˈwedɪŋ/", "meaning": "n. 婚礼"},
+  {"id": 422, "word": "reception", "phonetic": "/rɪˈsepʃn/", "meaning": "n. 招待会"},
+  {"id": 423, "word": "sort", "phonetic": "/sɔːt/", "meaning": "n. 种类"},
+  {"id": 424, "word": "tunnel", "phonetic": "/ˈtʌnl/", "meaning": "n. 隧道"},
+  {"id": 425, "word": "port", "phonetic": "/pɔːt/", "meaning": "n. 港口"},
+  {"id": 426, "word": "ventilate", "phonetic": "/ˈventɪleɪt/", "meaning": "v. 通风"},
+  {"id": 427, "word": "chimney", "phonetic": "/ˈtʃɪmni/", "meaning": "n. 烟囱"},
+  {"id": 428, "word": "invade", "phonetic": "/ɪnˈveɪd/", "meaning": "v. 入侵"},
+  {"id": 429, "word": "officially", "phonetic": "/əˈfɪʃəli/", "meaning": "adv. 正式地"},
+  {"id": 430, "word": "appreciate", "phonetic": "/əˈpriːʃieɪt/", "meaning": "v. 欣赏，感激"},
+  {"id": 431, "word": "notice", "phonetic": "/ˈnəʊtɪs/", "meaning": "v. 注意到"},
+  {"id": 432, "word": "presence", "phonetic": "/ˈprezns/", "meaning": "n. 出席，到场"},
+  {"id": 433, "word": "costume", "phonetic": "/ˈkɒstjuːm/", "meaning": "n. 化装服"},
+  {"id": 434, "word": "guard", "phonetic": "/ɡɑːd/", "meaning": "v. 守卫"},
+  {"id": 435, "word": "occasion", "phonetic": "/əˈkeɪʒn/", "meaning": "n. 场合"},
+  {"id": 436, "word": "Lancaster", "phonetic": "/ˈlæŋkəstə/", "meaning": "n. 兰开斯特（飞机名）"},
+  {"id": 437, "word": "bomber", "phonetic": "/ˈbɒmə(r)/", "meaning": "n. 轰炸机"},
+  {"id": 438, "word": "remote", "phonetic": "/rɪˈməʊt/", "meaning": "adj. 偏僻的"},
+  {"id": 439, "word": "wreck", "phonetic": "/rek/", "meaning": "n. 残骸"},
+  {"id": 440, "word": "rediscover", "phonetic": "/ˌriːdɪˈskʌvə(r)/", "meaning": "v. 重新发现"},
+  {"id": 441, "word": "aerial", "phonetic": "/ˈeəriəl/", "meaning": "n. 天线"},
+  {"id": 442, "word": "survey", "phonetic": "/ˈsɜːveɪ/", "meaning": "v. 勘察，调查"},
+  {"id": 443, "word": "rescue", "phonetic": "/ˈreskjuː/", "meaning": "v. 营救"},
+  {"id": 444, "word": "volcano", "phonetic": "/vɒlˈkeɪnəʊ/", "meaning": "n. 火山"},
+  {"id": 445, "word": "active", "phonetic": "/ˈæktɪv/", "meaning": "adj. 活动的"},
+  {"id": 446, "word": "erupt", "phonetic": "/ɪˈrʌpt/", "meaning": "v. （火山）喷发"},
+  {"id": 447, "word": "lava", "phonetic": "/ˈlɑːvə/", "meaning": "n. 熔岩"},
+  {"id": 448, "word": "manage", "phonetic": "/ˈmænɪdʒ/", "meaning": "v. 设法"},
+  {"id": 449, "word": "brilliant", "phonetic": "/ˈbrɪliənt/", "meaning": "adj. 精彩的，绝妙的"},
+  {"id": 450, "word": "persistent", "phonetic": "/pəˈsɪstənt/", "meaning": "adj. 坚持的，固执的"},
+  {"id": 451, "word": "avoid", "phonetic": "/əˈvɔɪd/", "meaning": "v. 避开"},
+  {"id": 452, "word": "insist", "phonetic": "/ɪnˈsɪst/", "meaning": "v. 坚持"},
+  {"id": 453, "word": "follow", "phonetic": "/ˈfɒləʊ/", "meaning": "v. 跟随"},
+  {"id": 454, "word": "murder", "phonetic": "/ˈmɜːdə(r)/", "meaning": "n. 谋杀"},
+  {"id": 455, "word": "instruction", "phonetic": "/ɪnˈstrʌkʃn/", "meaning": "n. 指导，指示"},
+  {"id": 456, "word": "suppose", "phonetic": "/səˈpəʊz/", "meaning": "v. 认为，猜想"},
+  {"id": 457, "word": "reaction", "phonetic": "/riˈækʃn/", "meaning": "n. 反应"},
+  {"id": 458, "word": "brake", "phonetic": "/breɪk/", "meaning": "n. 刹车"},
+  {"id": 459, "word": "pedal", "phonetic": "/ˈpedl/", "meaning": "n. 踏板"},
+  {"id": 460, "word": "mournful", "phonetic": "/ˈmɔːnfl/", "meaning": "adj. 悲哀的"},
+  {"id": 461, "word": "bull", "phonetic": "/bʊl/", "meaning": "n. 公牛"},
+  {"id": 462, "word": "fight", "phonetic": "/faɪt/", "meaning": "n. 打斗"},
+  {"id": 463, "word": "drunk", "phonetic": "/drʌŋk/", "meaning": "n. 醉汉"},
+  {"id": 464, "word": "wander", "phonetic": "/ˈwɒndə(r)/", "meaning": "v. 溜达，闲逛"},
+  {"id": 465, "word": "ring", "phonetic": "/rɪŋ/", "meaning": "n. 圈，环形场地"},
+  {"id": 466, "word": "clumsy", "phonetic": "/ˈklʌmzi/", "meaning": "adj. 笨拙的"},
+  {"id": 467, "word": "safety", "phonetic": "/ˈseɪfti/", "meaning": "n. 安全"},
+  {"id": 468, "word": "parliament", "phonetic": "/ˈpɑːləmənt/", "meaning": "n. 议会，国会"},
+  {"id": 469, "word": "erect", "phonetic": "/ɪˈrekt/", "meaning": "v. 建造，竖立"},
+  {"id": 470, "word": "accurate", "phonetic": "/ˈækjərət/", "meaning": "adj. 准确的"},
+  {"id": 471, "word": "official", "phonetic": "/əˈfɪʃl/", "meaning": "n. 官员"},
+  {"id": 472, "word": "Greenwich", "phonetic": "/ˌɡrenɪtʃ/", "meaning": "n. 格林威治"},
+  {"id": 473, "word": "observatory", "phonetic": "/əbˈzɜːvətri/", "meaning": "n. 天文台"},
+  {"id": 474, "word": "check", "phonetic": "/tʃek/", "meaning": "v. 检查"},
+  {"id": 475, "word": "microphone", "phonetic": "/ˈmaɪkrəfəʊn/", "meaning": "n. 麦克风"},
+  {"id": 476, "word": "racing", "phonetic": "/ˈreɪsɪŋ/", "meaning": "n. 赛车"},
+  {"id": 477, "word": "per", "phonetic": "/pɜː(r)/", "meaning": "prep. 每"},
+  {"id": 478, "word": "Utah", "phonetic": "/ˈjuːtɑː/", "meaning": "n. 犹他州"},
+  {"id": 479, "word": "horsepower", "phonetic": "/ˈhɔːspaʊə(r)/", "meaning": "n. 马力"},
+  {"id": 480, "word": "burst", "phonetic": "/bɜːst/", "meaning": "v. 爆裂"},
+  {"id": 481, "word": "average", "phonetic": "/ˈævərɪdʒ/", "meaning": "adj. 平均的"},
+  {"id": 482, "word": "record-holder", "phonetic": "/rɪˈkɔːd həʊldə(r)/", "meaning": "n. 纪录保持者"},
+  {"id": 483, "word": "truant", "phonetic": "/ˈtruːənt/", "meaning": "n. 逃学的孩子"},
+  {"id": 484, "word": "unimaginative", "phonetic": "/ˌʌnɪˈmædʒɪnətɪv/", "meaning": "adj. 缺乏想象力的"},
+  {"id": 485, "word": "shame", "phonetic": "/ʃeɪm/", "meaning": "n. 惭愧，羞耻"},
+  {"id": 486, "word": "hitchhike", "phonetic": "/ˈhɪtʃhaɪk/", "meaning": "v. 搭便车旅行"},
+  {"id": 487, "word": "meantime", "phonetic": "/ˈmiːntaɪm/", "meaning": "n. 其间"},
+  {"id": 488, "word": "lorry", "phonetic": "/ˈlɒri/", "meaning": "n. 卡车"},
+  {"id": 489, "word": "limelight", "phonetic": "/ˈlaɪmlaɪt/", "meaning": "n. 舞台灯光，公众注意中心"},
+  {"id": 490, "word": "precaution", "phonetic": "/prɪˈkɔːʃn/", "meaning": "n. 预防措施"},
+  {"id": 491, "word": "fan", "phonetic": "/fæn/", "meaning": "n. 狂热者，迷"},
+  {"id": 492, "word": "shady", "phonetic": "/ˈʃeɪdi/", "meaning": "adj. 阴凉的"},
+  {"id": 493, "word": "shelter", "phonetic": "/ˈʃeltə(r)/", "meaning": "n. 遮蔽处"},
+  {"id": 494, "word": "arrest", "phonetic": "/əˈrest/", "meaning": "v. 逮捕"},
+  {"id": 495, "word": "thick", "phonetic": "/θɪk/", "meaning": "adj. 厚的"},
+  {"id": 496, "word": "signal", "phonetic": "/ˈsɪɡnəl/", "meaning": "n. 信号"},
+  {"id": 497, "word": "stamp", "phonetic": "/stæmp/", "meaning": "v. 跺，踩"},
+  {"id": 498, "word": "helicopter", "phonetic": "/ˈhelɪkɒptə(r)/", "meaning": "n. 直升机"},
+  {"id": 499, "word": "scene", "phonetic": "/siːn/", "meaning": "n. 现场"},
+  {"id": 500, "word": "survivor", "phonetic": "/səˈvaɪvə(r)/", "meaning": "n. 幸存者"},
+  {"id": 501, "word": "fool", "phonetic": "/fuːl/", "meaning": "n. 傻瓜"},
+  {"id": 502, "word": "bulletin", "phonetic": "/ˈbʊlətɪn/", "meaning": "n. 新闻简报"},
+  {"id": 503, "word": "announce", "phonetic": "/əˈnaʊns/", "meaning": "v. 宣布"},
+  {"id": 504, "word": "macaroni", "phonetic": "/ˌmækəˈrəʊni/", "meaning": "n. 通心粉"},
+  {"id": 505, "word": "harvest", "phonetic": "/ˈhɑːvɪst/", "meaning": "n. 收获"},
+  {"id": 506, "word": "gather", "phonetic": "/ˈɡæðə(r)/", "meaning": "v. 收集，收割"},
+  {"id": 507, "word": "splendid", "phonetic": "/ˈsplendɪd/", "meaning": "adj. 极好的"},
+  {"id": 508, "word": "operation", "phonetic": "/ˌɒpəˈreɪʃn/", "meaning": "n. 手术"},
+  {"id": 509, "word": "patient", "phonetic": "/ˈpeɪʃnt/", "meaning": "n. 病人"},
+  {"id": 510, "word": "follow", "phonetic": "/ˈfɒləʊ/", "meaning": "v. 遵照"},
+  {"id": 511, "word": "instruction", "phonetic": "/ɪnˈstrʌkʃn/", "meaning": "n. 指示"},
+  {"id": 512, "word": "relative", "phonetic": "/ˈrelətɪv/", "meaning": "n. 亲属"},
+  {"id": 513, "word": "ward", "phonetic": "/wɔːd/", "meaning": "n. 病房"},
+  {"id": 514, "word": "entitle", "phonetic": "/ɪnˈtaɪtl/", "meaning": "v. 以……为名；称作"},
+  {"id": 515, "word": "calm", "phonetic": "/kɑːm/", "meaning": "v. 使镇定"},
+  {"id": 516, "word": "nerve", "phonetic": "/nɜːv/", "meaning": "n. 神经"},
+  {"id": 517, "word": "concentration", "phonetic": "/ˌkɒnsnˈtreɪʃn/", "meaning": "n. 集中，专心"},
+  {"id": 518, "word": "suffer", "phonetic": "/ˈsʌfə(r)/", "meaning": "v. 受苦，遭受"},
+  {"id": 519, "word": "symptom", "phonetic": "/ˈsɪmptəm/", "meaning": "n. 症状"},
+  {"id": 520, "word": "temper", "phonetic": "/ˈtempə(r)/", "meaning": "n. 脾气"},
+  {"id": 521, "word": "parent", "phonetic": "/ˈpeərənt/", "meaning": "n. 父母"},
+  {"id": 522, "word": "flight", "phonetic": "/flaɪt/", "meaning": "n. 飞行"},
+  {"id": 523, "word": "frightened", "phonetic": "/ˈfraɪtnd/", "meaning": "adj. 害怕的"},
+  {"id": 524, "word": "curious", "phonetic": "/ˈkjʊəriəs/", "meaning": "adj. 好奇的"},
+  {"id": 525, "word": "bomb", "phonetic": "/bɒm/", "meaning": "n. 炸弹"},
+  {"id": 526, "word": "plant", "phonetic": "/plɑːnt/", "meaning": "v. 安放；种植"},
+  {"id": 527, "word": "palace", "phonetic": "/ˈpæləs/", "meaning": "n. 宫殿"},
+  {"id": 528, "word": "extraordinary", "phonetic": "/ɪkˈstrɔːdnri/", "meaning": "adj. 不平常的，非凡的"},
+  {"id": 529, "word": "exhibition", "phonetic": "/ˌeksɪˈbɪʃn/", "meaning": "n. 展览"},
+  {"id": 530, "word": "iron", "phonetic": "/ˈaɪən/", "meaning": "n. 铁"},
+  {"id": 531, "word": "various", "phonetic": "/ˈveəriəs/", "meaning": "adj. 各种各样的"},
+  {"id": 532, "word": "machinery", "phonetic": "/məˈʃiːnəri/", "meaning": "n. 机器（总称）"},
+  {"id": 533, "word": "display", "phonetic": "/dɪˈspleɪ/", "meaning": "v. 展览，陈列"},
+  {"id": 534, "word": "prisoner", "phonetic": "/ˈprɪznə(r)/", "meaning": "n. 囚犯"},
+  {"id": 535, "word": "bush", "phonetic": "/bʊʃ/", "meaning": "n. 灌木丛"},
+  {"id": 536, "word": "rapidly", "phonetic": "/ˈræpɪdli/", "meaning": "adv. 迅速地"},
+  {"id": 537, "word": "uniform", "phonetic": "/ˈjuːnɪfɔːm/", "meaning": "n. 制服"},
+  {"id": 538, "word": "rifle", "phonetic": "/ˈraɪfl/", "meaning": "n. 来福枪，步枪"},
+  {"id": 539, "word": "shoulder", "phonetic": "/ˈʃəʊldə(r)/", "meaning": "n. 肩膀"},
+  {"id": 540, "word": "monster", "phonetic": "/ˈmɒnstə(r)/", "meaning": "n. 怪物"},
+  {"id": 541, "word": "sea", "phonetic": "/siː/", "meaning": "n. 大海"},
+  {"id": 542, "word": "sight", "phonetic": "/saɪt/", "meaning": "n. 看见，景象"},
+  {"id": 543, "word": "creature", "phonetic": "/ˈkriːtʃə(r)/", "meaning": "n. 生物"},
+  {"id": 544, "word": "peculiar", "phonetic": "/pɪˈkjuːliə(r)/", "meaning": "adj. 奇怪的"},
+  {"id": 545, "word": "shining", "phonetic": "/ˈʃaɪnɪŋ/", "meaning": "adj. 闪闪发光的"},
+  {"id": 546, "word": "election", "phonetic": "/ɪˈlekʃn/", "meaning": "n. 选举"},
+  {"id": 547, "word": "former", "phonetic": "/ˈfɔːmə(r)/", "meaning": "adj. 前任的"},
+  {"id": 548, "word": "defeat", "phonetic": "/dɪˈfiːt/", "meaning": "n. 失败"},
+  {"id": 549, "word": "fan", "phonetic": "/fæn/", "meaning": "n. 狂热支持者"},
+  {"id": 550, "word": "oppose", "phonetic": "/əˈpəʊz/", "meaning": "v. 反对"},
+  {"id": 551, "word": "strike", "phonetic": "/straɪk/", "meaning": "n. 罢工"},
+  {"id": 552, "word": "busman", "phonetic": "/ˈbʌsmən/", "meaning": "n. 公共汽车司机"},
+  {"id": 553, "word": "state", "phonetic": "/steɪt/", "meaning": "n. 状态"},
+  {"id": 554, "word": "agreement", "phonetic": "/əˈɡriːmənt/", "meaning": "n. 协议"},
+  {"id": 555, "word": "relieve", "phonetic": "/rɪˈliːv/", "meaning": "v. 减轻，缓解"},
+  {"id": 556, "word": "funeral", "phonetic": "/ˈfjuːnərəl/", "meaning": "n. 葬礼"},
+  {"id": 557, "word": "service", "phonetic": "/ˈsɜːvɪs/", "meaning": "n. 仪式；服务"},
+  {"id": 558, "word": "devote", "phonetic": "/dɪˈvəʊt/", "meaning": "v. 致力于"},
+  {"id": 559, "word": "memory", "phonetic": "/ˈmeməri/", "meaning": "n. 记忆，怀念"},
+  {"id": 560, "word": "swing", "phonetic": "/swɪŋ/", "meaning": "v. 转向，摆动"},
+  {"id": 561, "word": "speed", "phonetic": "/spiːd/", "meaning": "v. 加速，疾驰"},
+  {"id": 562, "word": "desperate", "phonetic": "/ˈdespərət/", "meaning": "adj. 绝望的"},
+  {"id": 563, "word": "companion", "phonetic": "/kəmˈpæniən/", "meaning": "n. 同伴"},
+  {"id": 564, "word": "water", "phonetic": "/ˈwɔːtə(r)/", "meaning": "v. 浇水；溅水"},
+  {"id": 565, "word": "alibi", "phonetic": "/ˈælɪbaɪ/", "meaning": "n. 不在犯罪现场"},
+  {"id": 566, "word": "check", "phonetic": "/tʃek/", "meaning": "v. 核对，检查"},
+  {"id": 567, "word": "truth", "phonetic": "/truːθ/", "meaning": "n. 真相"},
+  {"id": 568, "word": "employee", "phonetic": "/ɪmˈplɔɪiː/", "meaning": "n. 雇员"},
+  {"id": 569, "word": "confirm", "phonetic": "/kənˈfɜːm/", "meaning": "v. 确认"},
+  {"id": 570, "word": "trap", "phonetic": "/træp/", "meaning": "v. 陷入，困住"},
+  {"id": 571, "word": "surface", "phonetic": "/ˈsɜːfɪs/", "meaning": "n. 表面"},
+  {"id": 572, "word": "explosive", "phonetic": "/ɪkˈspləʊsɪv/", "meaning": "n. 爆炸物"},
+  {"id": 573, "word": "vibration", "phonetic": "/vaɪˈbreɪʃn/", "meaning": "n. 震动"},
+  {"id": 574, "word": "collapse", "phonetic": "/kəˈlæps/", "meaning": "v. 倒塌"},
+  {"id": 575, "word": "slip", "phonetic": "/slɪp/", "meaning": "v. 滑倒"},
+  {"id": 576, "word": "comedy", "phonetic": "/ˈkɒmədi/", "meaning": "n. 喜剧"},
+  {"id": 577, "word": "present", "phonetic": "/prɪˈzent/", "meaning": "v. 演出，呈现"},
+  {"id": 578, "word": "queue", "phonetic": "/kjuː/", "meaning": "v. 排队"},
+  {"id": 579, "word": "dull", "phonetic": "/dʌl/", "meaning": "adj. 枯燥的"},
+  {"id": 580, "word": "giant", "phonetic": "/ˈdʒaɪənt/", "meaning": "adj. 巨大的"},
+  {"id": 581, "word": "whale", "phonetic": "/weɪl/", "meaning": "n. 鲸"},
+  {"id": 582, "word": "danger", "phonetic": "/ˈdeɪndʒə(r)/", "meaning": "n. 危险"},
+  {"id": 583, "word": "protect", "phonetic": "/prəˈtekt/", "meaning": "v. 保护"},
+  {"id": 584, "word": "diversify", "phonetic": "/daɪˈvɜːsɪfaɪ/", "meaning": "v. 多样化"},
+  {"id": 585, "word": "balloon", "phonetic": "/bəˈluːn/", "meaning": "n. 气球"},
+  {"id": 586, "word": "royal", "phonetic": "/ˈrɔɪəl/", "meaning": "adj. 皇家的"},
+  {"id": 587, "word": "spy", "phonetic": "/spaɪ/", "meaning": "v. 侦察，窥探"},
+  {"id": 588, "word": "track", "phonetic": "/træk/", "meaning": "v. 跟踪"},
+  {"id": 589, "word": "binoculars", "phonetic": "/bɪˈnɒkjələz/", "meaning": "n. 望远镜"},
+  {"id": 590, "word": "fancy", "phonetic": "/ˈfænsi/", "meaning": "v. 想象，设想"},
+  {"id": 591, "word": "ladder", "phonetic": "/ˈlædə(r)/", "meaning": "n. 梯子"},
+  {"id": 592, "word": "shed", "phonetic": "/ʃed/", "meaning": "n. 棚子"},
+  {"id": 593, "word": "sarcastic", "phonetic": "/sɑːˈkæstɪk/", "meaning": "adj. 讽刺的"},
+  {"id": 594, "word": "climb", "phonetic": "/klaɪm/", "meaning": "v. 攀爬"},
+  {"id": 595, "word": "noble", "phonetic": "/ˈnəʊbl/", "meaning": "adj. 高尚的，壮丽的"},
+  {"id": 596, "word": "monument", "phonetic": "/ˈmɒnjumənt/", "meaning": "n. 纪念碑"},
+  {"id": 597, "word": "statue", "phonetic": "/ˈstætʃuː/", "meaning": "n. 雕像"},
+  {"id": 598, "word": "liberty", "phonetic": "/ˈlɪbəti/", "meaning": "n. 自由"},
+  {"id": 599, "word": "present", "phonetic": "/ˈpreznt/", "meaning": "v. 赠送"},
+  {"id": 600, "word": "pedestal", "phonetic": "/ˈpedɪstl/", "meaning": "n. 底座"},
+  {"id": 601, "word": "instruct", "phonetic": "/ɪnˈstrʌkt/", "meaning": "v. 指导，传授"},
+  {"id": 602, "word": "swim-suit", "phonetic": "/ˈswɪm suːt/", "meaning": "n. 泳衣"},
+  {"id": 603, "word": "underwater", "phonetic": "/ˌʌndəˈwɔːtə(r)/", "meaning": "adj. 水下的"},
+  {"id": 604, "word": "tricycle", "phonetic": "/ˈtraɪsɪkl/", "meaning": "n. 三轮车"},
+  {"id": 605, "word": "compete", "phonetic": "/kəmˈpiːt/", "meaning": "v. 比赛"},
+  {"id": 606, "word": "fantasy", "phonetic": "/ˈfæntəsi/", "meaning": "n. 幻想"},
+  {"id": 607, "word": "ambassador", "phonetic": "/æmˈbæsədə(r)/", "meaning": "n. 大使"},
+  {"id": 608, "word": "fantastic", "phonetic": "/fænˈtæstɪk/", "meaning": "adj. 离奇的，极好的"},
+  {"id": 609, "word": "fire extinguisher", "phonetic": "/ˈfaɪə ɪkˈstɪŋɡwɪʃə(r)/", "meaning": "n. 灭火器"},
+  {"id": 610, "word": "drill", "phonetic": "/drɪl/", "meaning": "n. 演习"},
+  {"id": 611, "word": "festival", "phonetic": "/ˈfestɪvl/", "meaning": "n. 节日"},
+  {"id": 612, "word": "lantern", "phonetic": "/ˈlæntən/", "meaning": "n. 灯笼"},
+  {"id": 613, "word": "spectre", "phonetic": "/ˈspektə(r)/", "meaning": "n. 幽灵"},
+  {"id": 614, "word": "wander", "phonetic": "/ˈwɒndə(r)/", "meaning": "v. 游荡"},
+  {"id": 615, "word": "haunt", "phonetic": "/hɔːnt/", "meaning": "v. 出没，作祟"}
+];
+
+// ============ STORAGE ============
+const PREFIX = 'nce2_';
+const OFFSETS = [0, 1, 3, 7, 15, 30];
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function dateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function getLearnDate(id) {
+  return localStorage.getItem(PREFIX + 'ld_' + id);
+}
+
+function setLearnDate(id, ds) {
+  localStorage.setItem(PREFIX + 'ld_' + id, ds);
+}
+
+function getReviews(id) {
+  const raw = localStorage.getItem(PREFIX + 'rev_' + id);
+  return raw ? JSON.parse(raw) : [false,false,false,false,false,false];
+}
+
+function setReview(id, idx, val) {
+  const r = getReviews(id);
+  r[idx] = val;
+  localStorage.setItem(PREFIX + 'rev_' + id, JSON.stringify(r));
+}
+
+function getErrors(id) {
+  return parseInt(localStorage.getItem(PREFIX + 'err_' + id) || '0');
+}
+
+function incErrors(id) {
+  const v = getErrors(id) + 1;
+  localStorage.setItem(PREFIX + 'err_' + id, String(v));
+  return v;
+}
+
+// ============ CORE LOGIC ============
+function getWordState(id) {
+  const ld = getLearnDate(id);
+  if (!ld) return { status:'fresh', learnDate:null, reviews:[false,false,false,false,false,false], cells:['empty','empty','empty','empty','empty','empty'], errors:0 };
+  const reviews = getReviews(id);
+  const errors = getErrors(id);
+  const today = todayStr();
+  const cells = OFFSETS.map((off, idx) => {
+    if (reviews[idx]) return 'done';
+    const parts = ld.split('-');
+    const base = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+    const due = new Date(base);
+    due.setDate(due.getDate() + off);
+    if (dateKey(due) <= today) return 'due';
+    return 'upcoming';
+  });
+  const allDone = reviews.every(r => r);
+  return { status: allDone ? 'done' : 'learning', learnDate:ld, reviews, cells, errors };
+}
+
+// ============ RENDER ============
+let currentFilter = 'all';
+let searchQuery = '';
+
+const FULL_HEAD = '<tr><th style="min-width:36px;">#</th><th style="min-width:110px;text-align:left;">单词</th><th style="min-width:100px;text-align:left;">音标</th><th style="min-width:160px;text-align:left;">释义</th><th style="min-width:100px;">默写输入</th><th style="min-width:80px;">开始日期</th><th style="min-width:50px;">G当天</th><th style="min-width:50px;">H+1</th><th style="min-width:50px;">I+3</th><th style="min-width:50px;">J+7</th><th style="min-width:50px;">K+15</th><th style="min-width:50px;">L+30</th><th style="min-width:50px;">错误</th></tr>';
+
+const ERROR_HEAD = '<tr><th style="min-width:36px;">#</th><th style="min-width:130px;text-align:left;">单词</th><th style="min-width:100px;text-align:left;">音标</th><th style="min-width:180px;text-align:left;">释义</th><th style="min-width:80px;">错误次数</th><th style="min-width:120px;">默写输入</th></tr>';
+
+function render() {
+  const tbody = document.querySelector('#wordTable tbody');
+  if (!tbody) return;
+  const head = document.getElementById('tableHead');
+  const today = todayStr();
+  let html = '';
+  let totalLearned = 0, totalDue = 0, totalDone = 0;
+
+  // Determine if we need to sort for errors filter
+  const isErrors = (currentFilter === 'errors');
+
+  // Collect rows to render
+  let rows = [];
+  WORDS.forEach((w, i) => {
+    const st = getWordState(w.id);
+    if (st.learnDate) totalLearned++;
+    const hasDue = st.cells.some(c => c === 'due');
+    if (hasDue) totalDue++;
+    if (st.status === 'done') totalDone++;
+
+    if (currentFilter === 'due' && !hasDue) return;
+    if (currentFilter === 'fresh' && st.learnDate) return;
+    if (currentFilter === 'done' && st.status !== 'done') return;
+    if (currentFilter === 'errors' && st.errors === 0) return;
+    if (searchQuery && !w.word.toLowerCase().includes(searchQuery.toLowerCase())) return;
+
+    rows.push({ w, st, i });
+  });
+
+  // Sort errors by count descending
+  if (isErrors) {
+    rows.sort((a, b) => b.st.errors - a.st.errors);
+  }
+
+  // Set header & legend
+  head.innerHTML = isErrors ? ERROR_HEAD : FULL_HEAD;
+  document.getElementById('legendBar').style.display = isErrors ? 'none' : '';
+
+  rows.forEach((item, ri) => {
+    const w = item.w;
+    const st = item.st;
+
+    if (isErrors) {
+      // Compact error view
+      html += '<tr id="row-' + w.id + '">';
+      html += '<td>' + (ri+1) + '</td>';
+      html += '<td class="word-cell" style="text-align:left;">' + esc(w.word) + '</td>';
+      html += '<td class="phonetic-cell" style="text-align:left;">' + esc(w.phonetic) + '</td>';
+      html += '<td class="meaning-cell" style="text-align:left;">' + esc(w.meaning) + '</td>';
+      html += '<td class="err-count">' + st.errors + '</td>';
+      html += '<td>';
+      html += '<input class="dict-input" id="inp-' + w.id + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkAnswer(' + w.id + ',this)}" onfocus="autoStart(' + w.id + ')">';
+      html += '<div class="feedback" id="fb-' + w.id + '"></div>';
+      html += '</td>';
+      html += '</tr>';
+    } else {
+      // Full view with review columns
+      let dateCol;
+      if (!st.learnDate) {
+        dateCol = '<span style="color:#bbb;font-size:0.82em;">未开始</span>';
+      } else {
+        const parts = st.learnDate.split('-');
+        dateCol = parseInt(parts[1]) + '/' + parseInt(parts[2]);
+      }
+
+      let revCells = '';
+      OFFSETS.forEach((off, idx) => {
+        if (!st.learnDate) {
+          revCells += '<td class="rev-cell rev-empty">-</td>';
+        } else if (st.cells[idx] === 'done') {
+          revCells += '<td class="rev-cell rev-done">✅</td>';
+        } else if (st.cells[idx] === 'due') {
+          const parts = st.learnDate.split('-');
+          const base = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+          const due = new Date(base);
+          due.setDate(due.getDate() + off);
+          revCells += '<td class="rev-cell rev-due" onclick="openQuiz(' + w.id + ',' + idx + ')">' + (due.getMonth()+1) + '/' + due.getDate() + '</td>';
+        } else {
+          const parts = st.learnDate.split('-');
+          const base = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+          const due = new Date(base);
+          due.setDate(due.getDate() + off);
+          revCells += '<td class="rev-cell rev-upcoming">' + (due.getMonth()+1) + '/' + due.getDate() + '</td>';
+        }
+      });
+
+      const errClass = st.errors > 0 ? 'err-count' : 'err-count zero';
+
+      html += '<tr id="row-' + w.id + '">';
+      html += '<td>' + (item.i+1) + '</td>';
+      html += '<td class="word-cell" style="text-align:left;">' + esc(w.word) + '</td>';
+      html += '<td class="phonetic-cell" style="text-align:left;">' + esc(w.phonetic) + '</td>';
+      html += '<td class="meaning-cell" style="text-align:left;">' + esc(w.meaning) + '</td>';
+      html += '<td>';
+      html += '<input class="dict-input" id="inp-' + w.id + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkAnswer(' + w.id + ',this)}" onfocus="autoStart(' + w.id + ')">';
+      html += '<div class="feedback" id="fb-' + w.id + '"></div>';
+      html += '</td>';
+      html += '<td>' + dateCol + '</td>';
+      html += revCells;
+      html += '<td class="' + errClass + '">' + st.errors + '</td>';
+      html += '</tr>';
+    }
+  });
+
+  tbody.innerHTML = html || '<tr><td colspan="' + (isErrors ? 6 : 13) + '" class="no-data">没有匹配的单词</td></tr>';
+
+  if (isErrors) {
+    const totalErrs = rows.reduce((s,x) => s + x.st.errors, 0);
+    document.getElementById('statsBar').innerHTML =
+      '出错单词：<b>' + rows.length + '</b> | 累计答错：<b style="color:#c62828;">' + totalErrs + '</b> 次';
+  } else {
+    document.getElementById('statsBar').innerHTML =
+      '已学习：<b>' + totalLearned + '</b> | 今日待复习：<b style="color:#e65100;">' + totalDue + '</b> | 全部完成：<b>' + totalDone + '</b> | 总计：<b>' + WORDS.length + '</b>';
+  }
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============ AUTO START ============
+function autoStart(id) {
+  if (!getLearnDate(id)) {
+    setLearnDate(id, todayStr());
+    render();
+    setTimeout(() => {
+      const inp = document.getElementById('inp-' + id);
+      if (inp) inp.focus();
+    }, 50);
+  }
+}
+
+// ============ FOCUS NEXT VISIBLE ROW ============
+function focusNextInput(currentId) {
+  const rows = Array.from(document.querySelectorAll('#wordTable tbody tr'));
+  let found = false;
+  for (let i = 0; i < rows.length; i++) {
+    if (found) {
+      const inp = rows[i].querySelector('input.dict-input');
+      if (inp) {
+        inp.focus();
+        inp.select();
+        return;
+      }
+    }
+    if (rows[i].id === 'row-' + currentId) found = true;
+  }
+}
+
+// ============ CHECK ANSWER ============
+function checkAnswer(id, inpEl) {
+  const w = WORDS.find(x => x.id === id);
+  if (!w) return;
+  const val = inpEl.value.trim().toLowerCase();
+  if (!val) return;
+  const st = getWordState(id);
+  const fb = document.getElementById('fb-' + id);
+
+  if (val === w.word.toLowerCase()) {
+    st.cells.forEach((c, idx) => {
+      if (c === 'due') setReview(id, idx, true);
+    });
+    inpEl.className = 'dict-input correct';
+    fb.className = 'feedback correct';
+    fb.textContent = '✅ 正确！';
+    const nextId = id;
+    setTimeout(() => {
+      inpEl.value = '';
+      inpEl.className = 'dict-input';
+      fb.className = 'feedback';
+      fb.textContent = '';
+      render();
+      // 用 requestAnimationFrame 确保 DOM 渲染完成后再跳转
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => focusNextInput(nextId));
+      });
+    }, 500);
+  } else {
+    const newErr = incErrors(id);
+    inpEl.className = 'dict-input wrong';
+    fb.className = 'feedback wrong';
+    fb.textContent = '❌ 错误，正确答案：' + w.word;
+    // 答错后原地更新错误计数（不重建整个表格，避免焦点丢失）
+    const row = document.getElementById('row-' + id);
+    if (row && currentFilter === 'errors') {
+      const errCell = row.querySelector('.err-count');
+      if (errCell) errCell.textContent = newErr;
+    } else if (row) {
+      const errCell = row.querySelector('td:last-child');
+      if (errCell) errCell.textContent = newErr;
+    }
+    // 错词本模式下，答错后重新排序渲染（但保留当前输入）
+    if (currentFilter === 'errors') {
+      setTimeout(() => {
+        const currentVal = document.getElementById('inp-' + id);
+        const savedVal = currentVal ? currentVal.value : '';
+        render();
+        setTimeout(() => {
+          const newInp = document.getElementById('inp-' + id);
+          if (newInp) {
+            newInp.value = savedVal;
+            newInp.className = 'dict-input wrong';
+            newInp.focus();
+          }
+        }, 50);
+      }, 1500);
+    } else {
+      setTimeout(() => {
+        inpEl.className = 'dict-input';
+      }, 1500);
+    }
+  }
+}
+
+// ============ QUIZ MODAL ============
+let quizId = 0, quizIdx = 0;
+function openQuiz(id, idx) {
+  quizId = id; quizIdx = idx;
+  const w = WORDS.find(x => x.id === id);
+  document.getElementById('quizOverlay').style.display = 'flex';
+  document.getElementById('quizTitle').textContent = '复习测验（第' + (idx+1) + '轮）';
+  document.getElementById('quizPhonetic').textContent = w.phonetic;
+  document.getElementById('quizMeaning').textContent = w.meaning;
+  document.getElementById('quizInput').value = '';
+  document.getElementById('quizFb').style.display = 'none';
+  setTimeout(() => document.getElementById('quizInput').focus(), 100);
+}
+function closeQuiz() {
+  document.getElementById('quizOverlay').style.display = 'none';
+}
+function submitQuiz() {
+  const w = WORDS.find(x => x.id === quizId);
+  if (!w) return;
+  const val = document.getElementById('quizInput').value.trim().toLowerCase();
+  const fb = document.getElementById('quizFb');
+  if (val === w.word.toLowerCase()) {
+    setReview(quizId, quizIdx, true);
+    fb.style.display = 'block';
+    fb.style.background = '#E8F5E9';
+    fb.style.color = '#2E7D32';
+    fb.textContent = '✅ 正确！';
+    setTimeout(() => { closeQuiz(); render(); }, 600);
+  } else {
+    incErrors(quizId);
+    fb.style.display = 'block';
+    fb.style.background = '#FFEBEE';
+    fb.style.color = '#c62828';
+    fb.textContent = '❌ 错误，正确答案：' + w.word;
+    setTimeout(() => render(), 800);
+  }
+}
+
+// ============ FILTER ============
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    render();
+  });
+});
+
+// ============ SEARCH ============
+document.getElementById('searchBox').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  render();
+});
+
+// ============ INIT ============
+render();
+</script>
+
+</body>
+</html>
