@@ -167,6 +167,10 @@ td { padding:7px 5px; text-align:center; border-bottom:1px solid #f0f0f0; vertic
     <input type="password" id="syncToken" placeholder="ghp_xxxxxxxxxxxx...">
     <p class="hint">去 <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a> 创建，勾选 gist 权限即可</p>
     <div id="syncStatus" style="margin-top:10px;text-align:center;"></div>
+    <div id="syncShareBox" style="display:none;margin-top:10px;text-align:center;">
+      <button onclick="copySyncLink()" style="padding:8px 16px;border:1px solid #4a6fa5;border-radius:8px;font-size:0.88em;cursor:pointer;background:#fff;color:#4a6fa5;font-weight:600;">📲 复制同步链接发给其他设备</button>
+      <p style="font-size:0.72em;color:#aaa;margin-top:6px;">在其他设备打开链接即可一键完成同步配置</p>
+    </div>
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button onclick="document.getElementById('settingsOverlay').style.display='none'" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#f0f0f0;color:#666;">关闭</button>
       <button onclick="doSyncSetup()" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#4a6fa5;color:#fff;">连接并同步</button>
@@ -1279,7 +1283,32 @@ function openSettings() {
     ? '<span class="sync-ok">✅ 已连接，自动同步中</span>'
     : '';
   document.getElementById('syncClearBtn').style.display = cfg ? 'block' : 'none';
+  document.getElementById('syncShareBox').style.display = cfg ? 'block' : 'none';
   document.getElementById('settingsOverlay').style.display = 'flex';
+}
+
+function copySyncLink() {
+  const cfg = getSyncCfg();
+  if (!cfg) return;
+  const link = location.href.replace(location.hash, '') + '#setup=' + cfg.token;
+  navigator.clipboard.writeText(link).then(() => {
+    const st = document.getElementById('syncStatus');
+    const orig = st.innerHTML;
+    st.innerHTML = '<span class="sync-ok">📋 已复制！发到微信/QQ在其他设备打开即可</span>';
+    setTimeout(() => { st.innerHTML = orig; }, 3000);
+  }).catch(() => {
+    // Fallback for non-HTTPS
+    const ta = document.createElement('textarea');
+    ta.value = link;
+    ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const st = document.getElementById('syncStatus');
+    st.innerHTML = '<span class="sync-ok">📋 已复制！发到微信/QQ在其他设备打开即可</span>';
+    setTimeout(() => { st.innerHTML = '<span class="sync-ok">✅ 已连接，自动同步中</span>'; }, 3000);
+  });
 }
 
 function buildSyncPayload() {
@@ -1333,6 +1362,8 @@ async function doSyncSetup() {
     saveSyncCfg({ token, gistId });
     statusEl.innerHTML = '<span class="sync-ok">✅ 连接成功！数据将在所有设备自动同步</span>';
     document.getElementById('syncClearBtn').style.display = 'block';
+    // 显示分享链接
+    document.getElementById('syncShareBox').style.display = 'block';
 
     // 先从 Gist 拉取远程数据合并
     await syncPull();
@@ -1415,6 +1446,20 @@ function syncTrigger() {
 // ============ INIT ============
 // 如果配置了云同步，先拉取 Gist 数据再渲染
 (async function() {
+  // 检测 URL hash 中的一键同步参数
+  if (location.hash.startsWith('#setup=')) {
+    const token = location.hash.slice(7).trim();
+    if (token.length > 10) {
+      document.getElementById('syncToken').value = token;
+      document.getElementById('settingsOverlay').style.display = 'flex';
+      // 清除 hash 防止刷新重复触发
+      history.replaceState(null, '', location.pathname + location.search);
+      // 自动执行同步
+      setTimeout(() => doSyncSetup(), 300);
+      return;
+    }
+  }
+
   const changed = await syncPull();
   if (changed) { loadCache(); }
   render();
