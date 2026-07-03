@@ -83,6 +83,24 @@ td { padding:7px 5px; text-align:center; border-bottom:1px solid #f0f0f0; vertic
 
 .no-data { text-align:center; padding:40px; color:#aaa; font-size:0.95em; }
 
+.speak-btn {
+  background:none; border:none; cursor:pointer; padding:2px 4px;
+  font-size:1em; opacity:0.55; transition:opacity 0.15s, transform 0.1s;
+  vertical-align:middle; line-height:1;
+}
+.speak-btn:hover { opacity:1; transform:scale(1.2); }
+.speak-btn.speaking { opacity:1; animation:speakPulse 0.6s infinite alternate; }
+@keyframes speakPulse { from{transform:scale(1);} to{transform:scale(1.3);} }
+
+.sync-ok { font-size:0.82em; color:#4caf50; font-weight:500; }
+.sync-err { font-size:0.82em; color:#c62828; }
+.settings-modal { background:#fff; border-radius:14px; padding:24px; max-width:420px; width:90%;
+  box-shadow:0 16px 48px rgba(0,0,0,0.22); }
+.settings-modal label { display:block; font-size:0.85em; color:#666; margin:10px 0 4px; }
+.settings-modal input { width:100%; padding:9px 12px; border:1.5px solid #ddd; border-radius:8px; font-size:0.9em; outline:none; box-sizing:border-box; }
+.settings-modal input:focus { border-color:#4a6fa5; }
+.settings-modal .hint { font-size:0.75em; color:#999; margin-top:2px; }
+
 @media (max-width:768px) {
   .header h1 { font-size:1em; }
   .container { padding:8px 6px; }
@@ -105,6 +123,10 @@ td { padding:7px 5px; text-align:center; border-bottom:1px solid #f0f0f0; vertic
     <button class="filter-btn" data-filter="done">全部完成</button>
     <button class="filter-btn" data-filter="errors">错词本</button>
     <input type="text" class="search-box" id="searchBox" placeholder="🔍 搜索单词...">
+    <button class="filter-btn" onclick="exportData()" title="导出全部进度到文件">⬇️ 导出</button>
+    <button class="filter-btn" onclick="document.getElementById('importFile').click()" title="从文件导入进度">⬆️ 导入</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    <button class="filter-btn" onclick="openSettings()" title="GitHub 云同步设置">☁️ 同步</button>
   </div>
   <div class="legend" id="legendBar">
     <span><span class="swatch" style="background:#fff176;border:1px solid #fdd835;"></span> 今日待复习</span>
@@ -134,7 +156,59 @@ td { padding:7px 5px; text-align:center; border-bottom:1px solid #f0f0f0; vertic
   </div>
 </div>
 
+<!-- Settings Modal -->
+<div id="settingsOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:200;justify-content:center;align-items:center;">
+  <div class="settings-modal">
+    <h3 style="font-size:1.1em;margin-bottom:14px;">☁️ GitHub 云同步</h3>
+    <p style="font-size:0.82em;color:#888;margin-bottom:14px;">
+      用 GitHub Gist 自动同步进度。配置后在任意设备打开同一页面，数据自动同步。
+    </p>
+    <label>GitHub Personal Access Token</label>
+    <input type="password" id="syncToken" placeholder="ghp_xxxxxxxxxxxx...">
+    <p class="hint">去 <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a> 创建，勾选 gist 权限即可</p>
+    <div id="syncStatus" style="margin-top:10px;text-align:center;"></div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button onclick="document.getElementById('settingsOverlay').style.display='none'" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#f0f0f0;color:#666;">关闭</button>
+      <button onclick="doSyncSetup()" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#4a6fa5;color:#fff;">连接并同步</button>
+    </div>
+    <button id="syncClearBtn" onclick="clearSync()" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:0.85em;cursor:pointer;background:#fff;color:#999;">断开同步（恢复本地模式）</button>
+  </div>
+</div>
+
 <script>
+// ============ SPEECH ============
+let _ttsVoice = null;
+function _initVoice() {
+  if (_ttsVoice) return;
+  const voices = speechSynthesis.getVoices();
+  // Prefer en-US or en-GB voices
+  _ttsVoice = voices.find(v => v.lang === 'en-US') ||
+              voices.find(v => v.lang === 'en-GB') ||
+              voices.find(v => v.lang.startsWith('en')) ||
+              voices[0] || null;
+}
+speechSynthesis.onvoiceschanged = () => { _ttsVoice = null; };
+
+function speak(word, btnEl) {
+  if (!('speechSynthesis' in window)) { alert('您的浏览器不支持语音朗读'); return; }
+  speechSynthesis.cancel();
+  _initVoice();
+  const utter = new SpeechSynthesisUtterance(word);
+  utter.lang = 'en-US';
+  utter.rate = 0.88;
+  utter.pitch = 1;
+  if (_ttsVoice) utter.voice = _ttsVoice;
+
+  // Visual feedback
+  const allBtns = document.querySelectorAll('.speak-btn');
+  allBtns.forEach(b => b.classList.remove('speaking'));
+  if (btnEl) btnEl.classList.add('speaking');
+  utter.onend = () => { if (btnEl) btnEl.classList.remove('speaking'); };
+  utter.onerror = () => { if (btnEl) btnEl.classList.remove('speaking'); };
+
+  speechSynthesis.speak(utter);
+}
+
 // ============ WORD DATA ============
 const WORDS = [
   {"id": 1, "word": "private", "phonetic": "/ˈpraɪvət/", "meaning": "adj. 私人的；私下的"},
@@ -758,6 +832,23 @@ const WORDS = [
 const PREFIX = 'nce2_';
 const OFFSETS = [0, 1, 3, 7, 15, 30];
 
+// ============ STATE CACHE ============
+// 批量加载所有 localStorage 到内存，避免 render 时高频同步读取（615词×3次≈1845次）
+const _cache = { ld: {}, rev: {}, err: {} };
+let _cacheLoaded = false;
+function loadCache() {
+  if (_cacheLoaded) return;
+  for (let i = 0; i < WORDS.length; i++) {
+    const id = WORDS[i].id;
+    _cache.ld[id]  = localStorage.getItem(PREFIX + 'ld_' + id);
+    const raw = localStorage.getItem(PREFIX + 'rev_' + id);
+    _cache.rev[id] = raw ? JSON.parse(raw) : null;
+    const e = localStorage.getItem(PREFIX + 'err_' + id);
+    _cache.err[id] = e ? parseInt(e) : 0;
+  }
+  _cacheLoaded = true;
+}
+
 function todayStr() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
@@ -768,14 +859,17 @@ function dateKey(d) {
 }
 
 function getLearnDate(id) {
-  return localStorage.getItem(PREFIX + 'ld_' + id);
+  return _cacheLoaded ? (_cache.ld[id] || null) : localStorage.getItem(PREFIX + 'ld_' + id);
 }
 
 function setLearnDate(id, ds) {
+  _cache.ld[id] = ds;
   localStorage.setItem(PREFIX + 'ld_' + id, ds);
+  syncTrigger();
 }
 
 function getReviews(id) {
+  if (_cacheLoaded) return _cache.rev[id] ? _cache.rev[id].slice() : [false,false,false,false,false,false];
   const raw = localStorage.getItem(PREFIX + 'rev_' + id);
   return raw ? JSON.parse(raw) : [false,false,false,false,false,false];
 }
@@ -783,16 +877,20 @@ function getReviews(id) {
 function setReview(id, idx, val) {
   const r = getReviews(id);
   r[idx] = val;
+  _cache.rev[id] = r;
   localStorage.setItem(PREFIX + 'rev_' + id, JSON.stringify(r));
+  syncTrigger();
 }
 
 function getErrors(id) {
-  return parseInt(localStorage.getItem(PREFIX + 'err_' + id) || '0');
+  return _cacheLoaded ? (_cache.err[id] || 0) : parseInt(localStorage.getItem(PREFIX + 'err_' + id) || '0');
 }
 
 function incErrors(id) {
   const v = getErrors(id) + 1;
+  _cache.err[id] = v;
   localStorage.setItem(PREFIX + 'err_' + id, String(v));
+  syncTrigger();
   return v;
 }
 
@@ -824,7 +922,63 @@ const FULL_HEAD = '<tr><th style="min-width:36px;">#</th><th style="min-width:11
 
 const ERROR_HEAD = '<tr><th style="min-width:36px;">#</th><th style="min-width:130px;text-align:left;">单词</th><th style="min-width:100px;text-align:left;">音标</th><th style="min-width:180px;text-align:left;">释义</th><th style="min-width:80px;">错误次数</th><th style="min-width:120px;">默写输入</th></tr>';
 
+// 生成单行 HTML（render 和 autoStart 局部刷新共用）
+function buildRow(item, ri, isErrors) {
+  const w = item.w;
+  const st = item.st;
+  const speakAttr = w.word.replace(/'/g, "\\'");
+  let h = '<tr id="row-' + w.id + '">';
+  if (isErrors) {
+    h += '<td>' + (ri+1) + '</td>';
+    h += '<td class="word-cell" style="text-align:left;">' + esc(w.word) + '<button class="speak-btn" onclick="speak(\'' + speakAttr + '\',this)" title="朗读">🔊</button></td>';
+    h += '<td class="phonetic-cell" style="text-align:left;">' + esc(w.phonetic) + '</td>';
+    h += '<td class="meaning-cell" style="text-align:left;">' + esc(w.meaning) + '</td>';
+    h += '<td class="err-count">' + st.errors + '</td>';
+    h += '<td><input class="dict-input" id="inp-' + w.id + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkAnswer(' + w.id + ',this)}" onfocus="autoStart(' + w.id + ')"><div class="feedback" id="fb-' + w.id + '"></div></td>';
+  } else {
+    let dateCol;
+    if (!st.learnDate) {
+      dateCol = '<span style="color:#bbb;font-size:0.82em;">未开始</span>';
+    } else {
+      const parts = st.learnDate.split('-');
+      dateCol = parseInt(parts[1]) + '/' + parseInt(parts[2]);
+    }
+    let revCells = '';
+    OFFSETS.forEach((off, idx) => {
+      if (!st.learnDate) {
+        revCells += '<td class="rev-cell rev-empty">-</td>';
+      } else if (st.cells[idx] === 'done') {
+        revCells += '<td class="rev-cell rev-done">✅</td>';
+      } else if (st.cells[idx] === 'due') {
+        const parts = st.learnDate.split('-');
+        const base = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+        const due = new Date(base);
+        due.setDate(due.getDate() + off);
+        revCells += '<td class="rev-cell rev-due" onclick="openQuiz(' + w.id + ',' + idx + ')">' + (due.getMonth()+1) + '/' + due.getDate() + '</td>';
+      } else {
+        const parts = st.learnDate.split('-');
+        const base = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+        const due = new Date(base);
+        due.setDate(due.getDate() + off);
+        revCells += '<td class="rev-cell rev-upcoming">' + (due.getMonth()+1) + '/' + due.getDate() + '</td>';
+      }
+    });
+    const errClass = st.errors > 0 ? 'err-count' : 'err-count zero';
+    h += '<td>' + (item.i+1) + '</td>';
+    h += '<td class="word-cell" style="text-align:left;">' + esc(w.word) + '<button class="speak-btn" onclick="speak(\'' + speakAttr + '\',this)" title="朗读">🔊</button></td>';
+    h += '<td class="phonetic-cell" style="text-align:left;">' + esc(w.phonetic) + '</td>';
+    h += '<td class="meaning-cell" style="text-align:left;">' + esc(w.meaning) + '</td>';
+    h += '<td><input class="dict-input" id="inp-' + w.id + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkAnswer(' + w.id + ',this)}" onfocus="autoStart(' + w.id + ')"><div class="feedback" id="fb-' + w.id + '"></div></td>';
+    h += '<td>' + dateCol + '</td>';
+    h += revCells;
+    h += '<td class="' + errClass + '">' + st.errors + '</td>';
+  }
+  h += '</tr>';
+  return h;
+}
+
 function render() {
+  loadCache();
   const tbody = document.querySelector('#wordTable tbody');
   if (!tbody) return;
   const head = document.getElementById('tableHead');
@@ -863,69 +1017,7 @@ function render() {
   document.getElementById('legendBar').style.display = isErrors ? 'none' : '';
 
   rows.forEach((item, ri) => {
-    const w = item.w;
-    const st = item.st;
-
-    if (isErrors) {
-      // Compact error view
-      html += '<tr id="row-' + w.id + '">';
-      html += '<td>' + (ri+1) + '</td>';
-      html += '<td class="word-cell" style="text-align:left;">' + esc(w.word) + '</td>';
-      html += '<td class="phonetic-cell" style="text-align:left;">' + esc(w.phonetic) + '</td>';
-      html += '<td class="meaning-cell" style="text-align:left;">' + esc(w.meaning) + '</td>';
-      html += '<td class="err-count">' + st.errors + '</td>';
-      html += '<td>';
-      html += '<input class="dict-input" id="inp-' + w.id + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkAnswer(' + w.id + ',this)}" onfocus="autoStart(' + w.id + ')">';
-      html += '<div class="feedback" id="fb-' + w.id + '"></div>';
-      html += '</td>';
-      html += '</tr>';
-    } else {
-      // Full view with review columns
-      let dateCol;
-      if (!st.learnDate) {
-        dateCol = '<span style="color:#bbb;font-size:0.82em;">未开始</span>';
-      } else {
-        const parts = st.learnDate.split('-');
-        dateCol = parseInt(parts[1]) + '/' + parseInt(parts[2]);
-      }
-
-      let revCells = '';
-      OFFSETS.forEach((off, idx) => {
-        if (!st.learnDate) {
-          revCells += '<td class="rev-cell rev-empty">-</td>';
-        } else if (st.cells[idx] === 'done') {
-          revCells += '<td class="rev-cell rev-done">✅</td>';
-        } else if (st.cells[idx] === 'due') {
-          const parts = st.learnDate.split('-');
-          const base = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
-          const due = new Date(base);
-          due.setDate(due.getDate() + off);
-          revCells += '<td class="rev-cell rev-due" onclick="openQuiz(' + w.id + ',' + idx + ')">' + (due.getMonth()+1) + '/' + due.getDate() + '</td>';
-        } else {
-          const parts = st.learnDate.split('-');
-          const base = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
-          const due = new Date(base);
-          due.setDate(due.getDate() + off);
-          revCells += '<td class="rev-cell rev-upcoming">' + (due.getMonth()+1) + '/' + due.getDate() + '</td>';
-        }
-      });
-
-      const errClass = st.errors > 0 ? 'err-count' : 'err-count zero';
-
-      html += '<tr id="row-' + w.id + '">';
-      html += '<td>' + (item.i+1) + '</td>';
-      html += '<td class="word-cell" style="text-align:left;">' + esc(w.word) + '</td>';
-      html += '<td class="phonetic-cell" style="text-align:left;">' + esc(w.phonetic) + '</td>';
-      html += '<td class="meaning-cell" style="text-align:left;">' + esc(w.meaning) + '</td>';
-      html += '<td>';
-      html += '<input class="dict-input" id="inp-' + w.id + '" onkeydown="if(event.key===\'Enter\'){event.preventDefault();checkAnswer(' + w.id + ',this)}" onfocus="autoStart(' + w.id + ')">';
-      html += '<div class="feedback" id="fb-' + w.id + '"></div>';
-      html += '</td>';
-      html += '<td>' + dateCol + '</td>';
-      html += revCells;
-      html += '<td class="' + errClass + '">' + st.errors + '</td>';
-      html += '</tr>';
-    }
+    html += buildRow(item, ri, isErrors);
   });
 
   tbody.innerHTML = html || '<tr><td colspan="' + (isErrors ? 6 : 13) + '" class="no-data">没有匹配的单词</td></tr>';
@@ -945,15 +1037,30 @@ function esc(s) {
 }
 
 // ============ AUTO START ============
+// 只重绘当前行，避免全量 render（615 行重建）造成卡顿
 function autoStart(id) {
-  if (!getLearnDate(id)) {
-    setLearnDate(id, todayStr());
-    render();
-    setTimeout(() => {
+  if (getLearnDate(id)) return; // 已开始过，无需处理
+  setLearnDate(id, todayStr());
+
+  // 局部刷新：仅替换当前行的 DOM，不动其它行
+  requestAnimationFrame(() => {
+    const rowEl = document.getElementById('row-' + id);
+    if (!rowEl) return; // 当前行不在当前视图中（被过滤掉了），数据已存，下次 render 会显示
+    const w = WORDS.find(x => x.id === id);
+    if (!w) return;
+    const st = getWordState(id);
+    const isErrors = (currentFilter === 'errors');
+    const tbody = rowEl.parentNode;
+    const ri = Array.from(tbody.children).indexOf(rowEl);
+    const i = WORDS.findIndex(x => x.id === id);
+    const newHtml = buildRow({ w, st, i }, ri, isErrors);
+    rowEl.outerHTML = newHtml;
+    // outerHTML 替换后元素被替换，需重新聚焦
+    requestAnimationFrame(() => {
       const inp = document.getElementById('inp-' + id);
       if (inp) inp.focus();
-    }, 50);
-  }
+    });
+  });
 }
 
 // ============ FOCUS NEXT VISIBLE ROW ============
@@ -989,6 +1096,7 @@ function checkAnswer(id, inpEl) {
     inpEl.className = 'dict-input correct';
     fb.className = 'feedback correct';
     fb.textContent = '✅ 正确！';
+    speak(w.word); // 答对时朗读单词
     const nextId = id;
     setTimeout(() => {
       inpEl.value = '';
@@ -1045,7 +1153,8 @@ function openQuiz(id, idx) {
   const w = WORDS.find(x => x.id === id);
   document.getElementById('quizOverlay').style.display = 'flex';
   document.getElementById('quizTitle').textContent = '复习测验（第' + (idx+1) + '轮）';
-  document.getElementById('quizPhonetic').textContent = w.phonetic;
+  document.getElementById('quizPhonetic').innerHTML = esc(w.phonetic) +
+    ' <button class="speak-btn" onclick="speak(\'' + w.word.replace(/'/g,"\\'") + '\',this)" title="朗读发音" style="font-size:1.1em;">🔊</button>';
   document.getElementById('quizMeaning').textContent = w.meaning;
   document.getElementById('quizInput').value = '';
   document.getElementById('quizFb').style.display = 'none';
@@ -1065,6 +1174,7 @@ function submitQuiz() {
     fb.style.background = '#E8F5E9';
     fb.style.color = '#2E7D32';
     fb.textContent = '✅ 正确！';
+    speak(w.word); // 答对时朗读
     setTimeout(() => { closeQuiz(); render(); }, 600);
   } else {
     incErrors(quizId);
@@ -1087,13 +1197,228 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 });
 
 // ============ SEARCH ============
+// 防抖：连续输入时只在停顿 180ms 后渲染一次，避免每个字符都全量重绘 615 行
+let _searchTimer = null;
 document.getElementById('searchBox').addEventListener('input', e => {
   searchQuery = e.target.value;
-  render();
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(render, 180);
 });
 
+// ============ IMPORT / EXPORT ============
+// 导出全部背诵进度为 JSON 文件（学习日期 / 复习记录 / 错误次数）
+function exportData() {
+  loadCache();
+  const data = { version: 3, exportedAt: new Date().toISOString(), prefix: PREFIX, entries: [] };
+  for (let i = 0; i < WORDS.length; i++) {
+    const id = WORDS[i].id;
+    const ld = _cache.ld[id];
+    const rev = _cache.rev[id];
+    const err = _cache.err[id];
+    if (ld || err || (rev && rev.some(Boolean))) {
+      data.entries.push({ id, ld: ld || null, rev: rev || null, err: err || 0 });
+    }
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '背单词进度_' + todayStr() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// 从 JSON 文件导入进度（覆盖当前同 key 数据）
+function importData(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data || !Array.isArray(data.entries)) { alert('文件格式不对'); return; }
+      if (!confirm('导入将覆盖当前进度，确定继续吗？')) { ev.target.value = ''; return; }
+      let count = 0;
+      data.entries.forEach(en => {
+        if (en.ld) { setLearnDate(en.id, en.ld); count++; }
+        if (en.rev) { _cache.rev[en.id] = en.rev; localStorage.setItem(PREFIX + 'rev_' + en.id, JSON.stringify(en.rev)); }
+        if (en.err) { _cache.err[en.id] = en.err; localStorage.setItem(PREFIX + 'err_' + en.id, String(en.err)); }
+      });
+      // 强制重载缓存并刷新
+      _cacheLoaded = false;
+      loadCache();
+      render();
+      alert('导入完成，共恢复 ' + count + ' 个单词的学习记录');
+    } catch (err) {
+      alert('导入失败：' + err.message);
+    }
+    ev.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ============ GITHUB GIST SYNC ============
+const SYNC_CFG_KEY = 'nce2_sync_cfg';
+const GIST_FILENAME = 'nce2-progress.json';
+let _syncDebounce = null;
+
+function getSyncCfg() {
+  try { return JSON.parse(localStorage.getItem(SYNC_CFG_KEY)); } catch(e) { return null; }
+}
+
+function saveSyncCfg(cfg) {
+  localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(cfg));
+}
+
+function openSettings() {
+  const cfg = getSyncCfg();
+  document.getElementById('syncToken').value = cfg ? cfg.token : '';
+  document.getElementById('syncStatus').innerHTML = cfg
+    ? '<span class="sync-ok">✅ 已连接，自动同步中</span>'
+    : '';
+  document.getElementById('syncClearBtn').style.display = cfg ? 'block' : 'none';
+  document.getElementById('settingsOverlay').style.display = 'flex';
+}
+
+function buildSyncPayload() {
+  loadCache();
+  const data = { version: 3, updatedAt: new Date().toISOString(), entries: [] };
+  for (let i = 0; i < WORDS.length; i++) {
+    const id = WORDS[i].id;
+    const ld = _cache.ld[id];
+    const rev = _cache.rev[id];
+    const err = _cache.err[id];
+    if (ld || err || (rev && rev.some(Boolean))) {
+      data.entries.push({ id, ld: ld || null, rev: rev || null, err: err || 0 });
+    }
+  }
+  return data;
+}
+
+async function doSyncSetup() {
+  const token = document.getElementById('syncToken').value.trim();
+  const statusEl = document.getElementById('syncStatus');
+  if (!token) { statusEl.innerHTML = '<span class="sync-err">请输入 Token</span>'; return; }
+  statusEl.innerHTML = '连接中...';
+
+  try {
+    const res = await fetch('https://api.github.com/gists?per_page=100', {
+      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
+    });
+    if (!res.ok) throw new Error('Token 无效或网络错误');
+    const gists = await res.json();
+
+    let gist = gists.find(g => g.files && g.files[GIST_FILENAME]);
+    let gistId;
+
+    if (gist) {
+      gistId = gist.id;
+    } else {
+      const createRes = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
+        body: JSON.stringify({
+          description: 'NCE2 背单词进度（自动同步）',
+          public: false,
+          files: { [GIST_FILENAME]: { content: JSON.stringify(buildSyncPayload()) } }
+        })
+      });
+      if (!createRes.ok) throw new Error('创建 Gist 失败（检查 Token 是否有 gist 权限）');
+      const newGist = await createRes.json();
+      gistId = newGist.id;
+    }
+
+    saveSyncCfg({ token, gistId });
+    statusEl.innerHTML = '<span class="sync-ok">✅ 连接成功！数据将在所有设备自动同步</span>';
+    document.getElementById('syncClearBtn').style.display = 'block';
+
+    // 先从 Gist 拉取远程数据合并
+    await syncPull();
+    _cacheLoaded = false;
+    loadCache();
+    render();
+  } catch (err) {
+    statusEl.innerHTML = '<span class="sync-err">❌ ' + err.message + '</span>';
+  }
+}
+
+function clearSync() {
+  if (!confirm('确定断开云同步？本地进度不受影响。')) return;
+  localStorage.removeItem(SYNC_CFG_KEY);
+  document.getElementById('syncToken').value = '';
+  document.getElementById('syncStatus').innerHTML = '<span class="sync-ok">已断开同步</span>';
+  document.getElementById('syncClearBtn').style.display = 'none';
+}
+
+async function syncPull() {
+  const cfg = getSyncCfg();
+  if (!cfg) return false;
+  try {
+    const res = await fetch('https://api.github.com/gists/' + cfg.gistId, {
+      headers: { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github+json' }
+    });
+    if (!res.ok) return false;
+    const gist = await res.json();
+    const file = gist.files && gist.files[GIST_FILENAME];
+    if (!file || !file.content) return false;
+    const data = JSON.parse(file.content);
+    if (!data || !Array.isArray(data.entries)) return false;
+
+    let changed = false;
+    data.entries.forEach(en => {
+      if (en.ld && en.ld !== _cache.ld[en.id]) {
+        _cache.ld[en.id] = en.ld;
+        localStorage.setItem(PREFIX + 'ld_' + en.id, en.ld);
+        changed = true;
+      }
+      if (en.rev && Array.isArray(en.rev)) {
+        _cache.rev[en.id] = en.rev;
+        localStorage.setItem(PREFIX + 'rev_' + en.id, JSON.stringify(en.rev));
+        changed = true;
+      }
+      if (typeof en.err === 'number' && en.err !== (_cache.err[en.id] || 0)) {
+        _cache.err[en.id] = en.err;
+        localStorage.setItem(PREFIX + 'err_' + en.id, String(en.err));
+        changed = true;
+      }
+    });
+    if (changed) { _cacheLoaded = false; loadCache(); }
+    return changed;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function syncPush() {
+  const cfg = getSyncCfg();
+  if (!cfg) return;
+  try {
+    const payload = buildSyncPayload();
+    await fetch('https://api.github.com/gists/' + cfg.gistId, {
+      method: 'PATCH',
+      headers: { 'Authorization': 'token ' + cfg.token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
+      body: JSON.stringify({ files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } } })
+    });
+  } catch (e) {
+    // 网络错误静默忽略，下次操作会重试
+  }
+}
+
+function syncTrigger() {
+  if (!getSyncCfg()) return;
+  clearTimeout(_syncDebounce);
+  _syncDebounce = setTimeout(syncPush, 2000);
+}
+
 // ============ INIT ============
-render();
+// 如果配置了云同步，先拉取 Gist 数据再渲染
+(async function() {
+  const changed = await syncPull();
+  if (changed) { loadCache(); }
+  render();
+})();
 </script>
 
 </body>
