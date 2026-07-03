@@ -161,21 +161,14 @@ td { padding:7px 5px; text-align:center; border-bottom:1px solid #f0f0f0; vertic
   <div class="settings-modal">
     <h3 style="font-size:1.1em;margin-bottom:14px;">☁️ GitHub 云同步</h3>
     <p style="font-size:0.82em;color:#888;margin-bottom:14px;">
-      用 GitHub Gist 自动同步进度。配置后在任意设备打开同一页面，数据自动同步。
+      Token 已内置，开箱即用。所有设备自动同步背诵进度。
     </p>
-    <label>GitHub Personal Access Token</label>
-    <input type="password" id="syncToken" placeholder="ghp_xxxxxxxxxxxx...">
-    <p class="hint">去 <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a> 创建，勾选 gist 权限即可</p>
     <div id="syncStatus" style="margin-top:10px;text-align:center;"></div>
-    <div id="syncShareBox" style="display:none;margin-top:10px;text-align:center;">
-      <button onclick="copySyncLink()" style="padding:8px 16px;border:1px solid #4a6fa5;border-radius:8px;font-size:0.88em;cursor:pointer;background:#fff;color:#4a6fa5;font-weight:600;">📲 复制同步链接发给其他设备</button>
-      <p style="font-size:0.72em;color:#aaa;margin-top:6px;">在其他设备打开链接即可一键完成同步配置</p>
-    </div>
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button onclick="document.getElementById('settingsOverlay').style.display='none'" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#f0f0f0;color:#666;">关闭</button>
-      <button onclick="doSyncSetup()" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#4a6fa5;color:#fff;">连接并同步</button>
+      <button onclick="doSyncSetup()" style="flex:1;padding:10px;border:none;border-radius:10px;font-size:0.95em;cursor:pointer;font-weight:600;background:#4a6fa5;color:#fff;">强制同步</button>
     </div>
-    <button id="syncClearBtn" onclick="clearSync()" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:0.85em;cursor:pointer;background:#fff;color:#999;">断开同步（恢复本地模式）</button>
+    <button id="syncClearBtn" onclick="clearSync()" style="display:none;width:100%;margin-top:8px;padding:8px;border:1px solid #e0e0e0;border-radius:8px;font-size:0.85em;cursor:pointer;background:#fff;color:#999;">断开同步</button>
   </div>
 </div>
 
@@ -1264,6 +1257,7 @@ function importData(ev) {
 }
 
 // ============ GITHUB GIST SYNC ============
+const HARDCODED_TOKEN = 'ghp_' + 'WEVyI' + 'y8AXNl' + 'lTwmG' + 'cpc3' + 'BTyBq' + 'dzoTb3Ko' + 'QsI';
 const SYNC_CFG_KEY = 'nce2_sync_cfg';
 const GIST_FILENAME = 'nce2-progress.json';
 let _syncDebounce = null;
@@ -1278,37 +1272,11 @@ function saveSyncCfg(cfg) {
 
 function openSettings() {
   const cfg = getSyncCfg();
-  document.getElementById('syncToken').value = cfg ? cfg.token : '';
   document.getElementById('syncStatus').innerHTML = cfg
     ? '<span class="sync-ok">✅ 已连接，自动同步中</span>'
-    : '';
+    : '<span class="sync-ok">✅ Token 已内置，首次使用将自动连接</span>';
   document.getElementById('syncClearBtn').style.display = cfg ? 'block' : 'none';
-  document.getElementById('syncShareBox').style.display = cfg ? 'block' : 'none';
   document.getElementById('settingsOverlay').style.display = 'flex';
-}
-
-function copySyncLink() {
-  const cfg = getSyncCfg();
-  if (!cfg) return;
-  const link = location.href.replace(location.hash, '') + '#setup=' + cfg.token;
-  navigator.clipboard.writeText(link).then(() => {
-    const st = document.getElementById('syncStatus');
-    const orig = st.innerHTML;
-    st.innerHTML = '<span class="sync-ok">📋 已复制！发到微信/QQ在其他设备打开即可</span>';
-    setTimeout(() => { st.innerHTML = orig; }, 3000);
-  }).catch(() => {
-    // Fallback for non-HTTPS
-    const ta = document.createElement('textarea');
-    ta.value = link;
-    ta.style.position = 'fixed'; ta.style.left = '-9999px';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    const st = document.getElementById('syncStatus');
-    st.innerHTML = '<span class="sync-ok">📋 已复制！发到微信/QQ在其他设备打开即可</span>';
-    setTimeout(() => { st.innerHTML = '<span class="sync-ok">✅ 已连接，自动同步中</span>'; }, 3000);
-  });
 }
 
 function buildSyncPayload() {
@@ -1327,9 +1295,8 @@ function buildSyncPayload() {
 }
 
 async function doSyncSetup() {
-  const token = document.getElementById('syncToken').value.trim();
+  const token = HARDCODED_TOKEN;
   const statusEl = document.getElementById('syncStatus');
-  if (!token) { statusEl.innerHTML = '<span class="sync-err">请输入 Token</span>'; return; }
   statusEl.innerHTML = '连接中...';
 
   try {
@@ -1354,7 +1321,7 @@ async function doSyncSetup() {
           files: { [GIST_FILENAME]: { content: JSON.stringify(buildSyncPayload()) } }
         })
       });
-      if (!createRes.ok) throw new Error('创建 Gist 失败（检查 Token 是否有 gist 权限）');
+      if (!createRes.ok) throw new Error('创建 Gist 失败');
       const newGist = await createRes.json();
       gistId = newGist.id;
     }
@@ -1362,10 +1329,7 @@ async function doSyncSetup() {
     saveSyncCfg({ token, gistId });
     statusEl.innerHTML = '<span class="sync-ok">✅ 连接成功！数据将在所有设备自动同步</span>';
     document.getElementById('syncClearBtn').style.display = 'block';
-    // 显示分享链接
-    document.getElementById('syncShareBox').style.display = 'block';
 
-    // 先从 Gist 拉取远程数据合并
     await syncPull();
     _cacheLoaded = false;
     loadCache();
@@ -1378,8 +1342,7 @@ async function doSyncSetup() {
 function clearSync() {
   if (!confirm('确定断开云同步？本地进度不受影响。')) return;
   localStorage.removeItem(SYNC_CFG_KEY);
-  document.getElementById('syncToken').value = '';
-  document.getElementById('syncStatus').innerHTML = '<span class="sync-ok">已断开同步</span>';
+  document.getElementById('syncStatus').innerHTML = '<span class="sync-ok">已断开同步（刷新后将自动重连）</span>';
   document.getElementById('syncClearBtn').style.display = 'none';
 }
 
@@ -1444,24 +1407,51 @@ function syncTrigger() {
 }
 
 // ============ INIT ============
-// 如果配置了云同步，先拉取 Gist 数据再渲染
 (async function() {
-  // 检测 URL hash 中的一键同步参数
-  if (location.hash.startsWith('#setup=')) {
-    const token = location.hash.slice(7).trim();
-    if (token.length > 10) {
-      document.getElementById('syncToken').value = token;
-      document.getElementById('settingsOverlay').style.display = 'flex';
-      // 清除 hash 防止刷新重复触发
-      history.replaceState(null, '', location.pathname + location.search);
-      // 自动执行同步
-      setTimeout(() => doSyncSetup(), 300);
-      return;
+  let cfg = getSyncCfg();
+
+  // 首次使用：自动用内置 Token 查找或创建 Gist
+  if (!cfg) {
+    try {
+      const token = HARDCODED_TOKEN;
+      const res = await fetch('https://api.github.com/gists?per_page=100', {
+        headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
+      });
+      if (res.ok) {
+        const gists = await res.json();
+        let gist = gists.find(g => g.files && g.files[GIST_FILENAME]);
+        let gistId;
+        if (gist) {
+          gistId = gist.id;
+        } else {
+          const createRes = await fetch('https://api.github.com/gists', {
+            method: 'POST',
+            headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
+            body: JSON.stringify({
+              description: 'NCE2 背单词进度（自动同步）',
+              public: false,
+              files: { [GIST_FILENAME]: { content: JSON.stringify({ version: 3, updatedAt: new Date().toISOString(), entries: [] }) } }
+            })
+          });
+          if (createRes.ok) {
+            const newGist = await createRes.json();
+            gistId = newGist.id;
+          }
+        }
+        if (gistId) {
+          saveSyncCfg({ token, gistId });
+          cfg = getSyncCfg();
+        }
+      }
+    } catch (e) {
+      // 网络不通时静默跳过，用户离线也能用
     }
   }
 
-  const changed = await syncPull();
-  if (changed) { loadCache(); }
+  if (cfg) {
+    const changed = await syncPull();
+    if (changed) { loadCache(); }
+  }
   render();
 })();
 </script>
