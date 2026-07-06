@@ -1256,11 +1256,14 @@ function importData(ev) {
   reader.readAsText(file);
 }
 
-// ============ GITHUB GIST SYNC ============
+// ============ GITHUB REPO SYNC ============
 const HARDCODED_TOKEN = 'ghp_' + 'WEVyI' + 'y8AXNl' + 'lTwmG' + 'cpc3' + 'BTyBq' + 'dzoTb3Ko' + 'QsI';
 const SYNC_CFG_KEY = 'nce2_sync_cfg';
-const GIST_FILENAME = 'nce2-progress.json';
+const SYNC_REPO = 'guigui88866/nce2-sync';
+const SYNC_FILE = 'nce2-progress.json';
+const SYNC_API = 'https://api.github.com/repos/' + SYNC_REPO + '/contents/' + SYNC_FILE;
 let _syncDebounce = null;
+let _syncSha = null;
 
 function getSyncCfg() {
   try { return JSON.parse(localStorage.getItem(SYNC_CFG_KEY)); } catch(e) { return null; }
@@ -1300,33 +1303,16 @@ async function doSyncSetup() {
   statusEl.innerHTML = '连接中...';
 
   try {
-    const res = await fetch('https://api.github.com/gists?per_page=100', {
+    // 验证仓库可访问（文件不存在也没关系，push 时会自动创建）
+    const res = await fetch(SYNC_API, {
       headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
     });
-    if (!res.ok) throw new Error('Token 无效或网络错误');
-    const gists = await res.json();
-
-    let gist = gists.find(g => g.files && g.files[GIST_FILENAME]);
-    let gistId;
-
-    if (gist) {
-      gistId = gist.id;
-    } else {
-      const createRes = await fetch('https://api.github.com/gists', {
-        method: 'POST',
-        headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
-        body: JSON.stringify({
-          description: 'NCE2 背单词进度（自动同步）',
-          public: false,
-          files: { [GIST_FILENAME]: { content: JSON.stringify(buildSyncPayload()) } }
-        })
-      });
-      if (!createRes.ok) throw new Error('创建 Gist 失败');
-      const newGist = await createRes.json();
-      gistId = newGist.id;
+    if (res.ok) {
+      const data = await res.json();
+      _syncSha = data.sha;
     }
 
-    saveSyncCfg({ token, gistId });
+    saveSyncCfg({ token });
     statusEl.innerHTML = '<span class="sync-ok">✅ 连接成功！数据将在所有设备自动同步</span>';
     document.getElementById('syncClearBtn').style.display = 'block';
 
@@ -1350,18 +1336,18 @@ async function syncPull() {
   const cfg = getSyncCfg();
   if (!cfg) return false;
   try {
-    const res = await fetch('https://api.github.com/gists/' + cfg.gistId, {
+    const res = await fetch(SYNC_API, {
       headers: { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github+json' }
     });
     if (!res.ok) return false;
-    const gist = await res.json();
-    const file = gist.files && gist.files[GIST_FILENAME];
-    if (!file || !file.content) return false;
-    const data = JSON.parse(file.content);
-    if (!data || !Array.isArray(data.entries)) return false;
+    const data = await res.json();
+    _syncSha = data.sha;
+    const content = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+    const parsed = JSON.parse(content);
+    if (!parsed || !Array.isArray(parsed.entries)) return false;
 
     let changed = false;
-    data.entries.forEach(en => {
+    parsed.entries.forEach(en => {
       if (en.ld && en.ld !== _cache.ld[en.id]) {
         _cache.ld[en.id] = en.ld;
         localStorage.setItem(PREFIX + 'ld_' + en.id, en.ld);
@@ -1390,11 +1376,32 @@ async function syncPush() {
   if (!cfg) return;
   try {
     const payload = buildSyncPayload();
-    await fetch('https://api.github.com/gists/' + cfg.gistId, {
-      method: 'PATCH',
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    const body = { message: 'sync ' + new Date().toISOString(), content: b64 };
+    if (_syncSha) body.sha = _syncSha;
+    const res = await fetch(SYNC_API, {
+      method: 'PUT',
       headers: { 'Authorization': 'token ' + cfg.token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
-      body: JSON.stringify({ files: { [GIST_FILENAME]: { content: JSON.stringify(payload) } } })
+      body: JSON.stringify(body)
     });
+    if (res.ok) {
+      const data = await res.json();
+      _syncSha = data.content.sha;
+    } else if (res.status === 409 || res.status === 422) {
+      // SHA 冲突或缺少 SHA：先拉取最新再重试一次
+      await syncPull();
+      const body2 = { message: 'sync retry ' + new Date().toISOString(), content: b64 };
+      if (_syncSha) body2.sha = _syncSha;
+      const res2 = await fetch(SYNC_API, {
+        method: 'PUT',
+        headers: { 'Authorization': 'token ' + cfg.token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
+        body: JSON.stringify(body2)
+      });
+      if (res2.ok) {
+        const data2 = await res2.json();
+        _syncSha = data2.content.sha;
+      }
+    }
   } catch (e) {
     // 网络错误静默忽略，下次操作会重试
   }
@@ -1410,39 +1417,21 @@ function syncTrigger() {
 (async function() {
   let cfg = getSyncCfg();
 
-  // 首次使用：自动用内置 Token 查找或创建 Gist
+  // 首次使用：自动用内置 Token 连接私有同步仓库
   if (!cfg) {
     try {
       const token = HARDCODED_TOKEN;
-      const res = await fetch('https://api.github.com/gists?per_page=100', {
+      // 验证仓库可访问
+      const res = await fetch(SYNC_API, {
         headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
       });
       if (res.ok) {
-        const gists = await res.json();
-        let gist = gists.find(g => g.files && g.files[GIST_FILENAME]);
-        let gistId;
-        if (gist) {
-          gistId = gist.id;
-        } else {
-          const createRes = await fetch('https://api.github.com/gists', {
-            method: 'POST',
-            headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json' },
-            body: JSON.stringify({
-              description: 'NCE2 背单词进度（自动同步）',
-              public: false,
-              files: { [GIST_FILENAME]: { content: JSON.stringify({ version: 3, updatedAt: new Date().toISOString(), entries: [] }) } }
-            })
-          });
-          if (createRes.ok) {
-            const newGist = await createRes.json();
-            gistId = newGist.id;
-          }
-        }
-        if (gistId) {
-          saveSyncCfg({ token, gistId });
-          cfg = getSyncCfg();
-        }
+        const data = await res.json();
+        _syncSha = data.sha;
       }
+      // 文件不存在(404)也没关系，push 时会自动创建
+      saveSyncCfg({ token });
+      cfg = getSyncCfg();
     } catch (e) {
       // 网络不通时静默跳过，用户离线也能用
     }
