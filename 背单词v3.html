@@ -1303,13 +1303,18 @@ async function doSyncSetup() {
   statusEl.innerHTML = '连接中...';
 
   try {
-    // 验证仓库可访问（文件不存在也没关系，push 时会自动创建）
+    // 验证仓库可访问
     const res = await fetch(SYNC_API, {
       headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
     });
     if (res.ok) {
       const data = await res.json();
       _syncSha = data.sha;
+    } else if (res.status === 404) {
+      // 文件不存在，第一次 push 会创建
+      _syncSha = null;
+    } else {
+      throw new Error('仓库访问失败 (HTTP ' + res.status + ')');
     }
 
     saveSyncCfg({ token });
@@ -1321,6 +1326,7 @@ async function doSyncSetup() {
     loadCache();
     render();
   } catch (err) {
+    console.error('[Sync] 连接失败:', err);
     statusEl.innerHTML = '<span class="sync-err">❌ ' + err.message + '</span>';
   }
 }
@@ -1339,12 +1345,12 @@ async function syncPull() {
     const res = await fetch(SYNC_API, {
       headers: { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github+json' }
     });
-    if (!res.ok) return false;
+    if (!res.ok) { console.warn('[Sync] 拉取失败 HTTP', res.status); return false; }
     const data = await res.json();
     _syncSha = data.sha;
-    const content = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
-    const parsed = JSON.parse(content);
-    if (!parsed || !Array.isArray(parsed.entries)) return false;
+    const raw = atob(data.content.replace(/\n/g, ''));
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.entries)) { console.warn('[Sync] 数据格式错误'); return false; }
 
     let changed = false;
     parsed.entries.forEach(en => {
@@ -1364,9 +1370,10 @@ async function syncPull() {
         changed = true;
       }
     });
-    if (changed) { _cacheLoaded = false; loadCache(); }
+    if (changed) { _cacheLoaded = false; loadCache(); console.log('[Sync] 拉取成功，有更新'); }
     return changed;
   } catch (e) {
+    console.error('[Sync] 拉取异常:', e.message);
     return false;
   }
 }
@@ -1376,7 +1383,7 @@ async function syncPush() {
   if (!cfg) return;
   try {
     const payload = buildSyncPayload();
-    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    const b64 = btoa(JSON.stringify(payload));
     const body = { message: 'sync ' + new Date().toISOString(), content: b64 };
     if (_syncSha) body.sha = _syncSha;
     const res = await fetch(SYNC_API, {
@@ -1387,8 +1394,9 @@ async function syncPush() {
     if (res.ok) {
       const data = await res.json();
       _syncSha = data.content.sha;
+      console.log('[Sync] 上传成功');
     } else if (res.status === 409 || res.status === 422) {
-      // SHA 冲突或缺少 SHA：先拉取最新再重试一次
+      console.warn('[Sync] SHA 冲突，重试中...');
       await syncPull();
       const body2 = { message: 'sync retry ' + new Date().toISOString(), content: b64 };
       if (_syncSha) body2.sha = _syncSha;
@@ -1400,10 +1408,15 @@ async function syncPush() {
       if (res2.ok) {
         const data2 = await res2.json();
         _syncSha = data2.content.sha;
+        console.log('[Sync] 重试上传成功');
+      } else {
+        console.error('[Sync] 重试上传失败 HTTP', res2.status);
       }
+    } else {
+      console.error('[Sync] 上传失败 HTTP', res.status);
     }
   } catch (e) {
-    // 网络错误静默忽略，下次操作会重试
+    console.error('[Sync] 上传异常:', e.message);
   }
 }
 
@@ -1417,23 +1430,36 @@ function syncTrigger() {
 (async function() {
   let cfg = getSyncCfg();
 
+  // 迁移旧配置（Gist → 私有仓库）
+  if (cfg && cfg.gistId) {
+    console.log('[Sync] 检测到旧版 Gist 配置，升级到私有仓库');
+    saveSyncCfg({ token: cfg.token });
+    cfg = getSyncCfg();
+  }
+
   // 首次使用：自动用内置 Token 连接私有同步仓库
   if (!cfg) {
     try {
       const token = HARDCODED_TOKEN;
-      // 验证仓库可访问
       const res = await fetch(SYNC_API, {
         headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
       });
       if (res.ok) {
         const data = await res.json();
         _syncSha = data.sha;
+        saveSyncCfg({ token });
+        cfg = getSyncCfg();
+        console.log('[Sync] 自动连接成功');
+      } else if (res.status === 404) {
+        // 文件不存在，push 时会自动创建
+        saveSyncCfg({ token });
+        cfg = getSyncCfg();
+        console.log('[Sync] 自动连接成功（文件待创建）');
+      } else {
+        console.warn('[Sync] 自动连接失败 HTTP', res.status);
       }
-      // 文件不存在(404)也没关系，push 时会自动创建
-      saveSyncCfg({ token });
-      cfg = getSyncCfg();
     } catch (e) {
-      // 网络不通时静默跳过，用户离线也能用
+      console.warn('[Sync] 自动连接异常:', e.message);
     }
   }
 
